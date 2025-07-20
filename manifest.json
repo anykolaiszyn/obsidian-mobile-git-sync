@@ -1,0 +1,11 @@
+{
+	"id": "obsidian-mobile-git-sync",
+	"name": "Mobile Git Sync",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Mobile-first GitHub sync plugin for Obsidian. Seamlessly sync your notes with private GitHub repositories with automatic conflict resolution, offline queuing, and minimal user interaction.",
+	"author": "anykolaiszyn",
+	"authorUrl": "https://github.com/anykolaiszyn",
+	"fundingUrl": "https://github.com/anykolaiszyn/obsidian-mobile-git-sync",
+	"isDesktopOnly": false
+}
