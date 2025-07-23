@@ -1,4 +1,3 @@
-
 import { Plugin, Modal, App, TFile, Notice, requestUrl, Setting, PluginSettingTab } from 'obsidian';
 
 
@@ -22,9 +21,15 @@ class MobileGitSyncPlugin extends Plugin {
   repoOwner: string = '';
   repoName: string = '';
 
-  public updateStatusBar(text: string) {
+  // Add a new property for conflict strategy
+  conflictStrategy: 'prompt' | 'latest' | 'local' | 'remote' = 'prompt';
+
+  public updateStatusBar(text: string, showNotice = false) {
 	if (this.statusBarItem) {
 	  this.statusBarItem.setText(text);
+	}
+	if (showNotice) {
+	  new Notice(text);
 	}
   }
 
@@ -99,9 +104,9 @@ class MobileGitSyncPlugin extends Plugin {
   }
 
   async performSync() {
-	this.updateStatusBar('Syncing...');
+	this.updateStatusBar('Syncing...', true);
 	setTimeout(() => {
-	  this.updateStatusBar('Sync complete');
+	  this.updateStatusBar('Sync complete', true);
 	}, 1000);
   }
 
@@ -166,14 +171,25 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 	containerEl.empty();
 	containerEl.createEl('h2', { text: 'Mobile Git Sync Settings' });
 
+	// Defensive: ensure all settings fields are defined and of correct type
+	const s = this.plugin.settings;
+	s.repoUrl = typeof s.repoUrl === 'string' ? s.repoUrl : '';
+	s.githubToken = typeof s.githubToken === 'string' ? s.githubToken : '';
+	s.branch = typeof s.branch === 'string' ? s.branch : 'main';
+	s.excludePatterns = Array.isArray(s.excludePatterns) ? s.excludePatterns : [];
+	s.syncFolders = Array.isArray(s.syncFolders) ? s.syncFolders : [];
+	s.autoSyncInterval = typeof s.autoSyncInterval === 'number' ? s.autoSyncInterval : 5;
+	s.useGitHubAPI = typeof s.useGitHubAPI === 'boolean' ? s.useGitHubAPI : true;
+	s.isConfigured = typeof s.isConfigured === 'boolean' ? s.isConfigured : false;
+
 	new Setting(containerEl)
 	  .setName('GitHub Repository URL')
 	  .setDesc('Format: https://github.com/owner/repo')
 	  .addText(text => text
 		.setPlaceholder('https://github.com/owner/repo')
-		.setValue(this.plugin.settings.repoUrl)
+		.setValue(s.repoUrl)
 		.onChange(async (value) => {
-		  this.plugin.settings.repoUrl = value;
+		  s.repoUrl = value;
 		  this.plugin.parseRepoUrl();
 		  await (this.plugin as any).saveSettings();
 		}));
@@ -183,9 +199,9 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 	  .setDesc('A personal access token with repo access')
 	  .addText(text => text
 		.setPlaceholder('ghp_...')
-		.setValue(this.plugin.settings.githubToken)
+		.setValue(s.githubToken)
 		.onChange(async (value) => {
-		  this.plugin.settings.githubToken = value;
+		  s.githubToken = value;
 		  await (this.plugin as any).saveSettings();
 		}));
 
@@ -194,9 +210,9 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 	  .setDesc('Branch to sync with')
 	  .addText(text => text
 		.setPlaceholder('main')
-		.setValue(this.plugin.settings.branch)
+		.setValue(s.branch)
 		.onChange(async (value) => {
-		  this.plugin.settings.branch = value;
+		  s.branch = value;
 		  await (this.plugin as any).saveSettings();
 		}));
 
@@ -205,9 +221,9 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 	  .setDesc('Glob patterns to exclude (comma separated)')
 	  .addText(text => text
 		.setPlaceholder('.git/**,node_modules/**')
-		.setValue(this.plugin.settings.excludePatterns.join(','))
+		.setValue(Array.isArray(s.excludePatterns) ? s.excludePatterns.join(',') : '')
 		.onChange(async (value) => {
-		  this.plugin.settings.excludePatterns = value.split(',').map(s => s.trim()).filter(Boolean);
+		  s.excludePatterns = value.split(',').map(str => str.trim()).filter(Boolean);
 		  await (this.plugin as any).saveSettings();
 		}));
 
@@ -216,9 +232,9 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 	  .setDesc('Only sync these folders (comma separated, blank for all)')
 	  .addText(text => text
 		.setPlaceholder('folder1,folder2')
-		.setValue(this.plugin.settings.syncFolders.join(','))
+		.setValue(Array.isArray(s.syncFolders) ? s.syncFolders.join(',') : '')
 		.onChange(async (value) => {
-		  this.plugin.settings.syncFolders = value.split(',').map(s => s.trim()).filter(Boolean);
+		  s.syncFolders = value.split(',').map(str => str.trim()).filter(Boolean);
 		  await (this.plugin as any).saveSettings();
 		}));
 
@@ -227,11 +243,11 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 	  .setDesc('How often to auto-sync (in minutes)')
 	  .addText(text => text
 		.setPlaceholder('5')
-		.setValue(this.plugin.settings.autoSyncInterval.toString())
+		.setValue(String(s.autoSyncInterval))
 		.onChange(async (value) => {
 		  const num = parseInt(value);
 		  if (!isNaN(num) && num > 0) {
-			this.plugin.settings.autoSyncInterval = num;
+			s.autoSyncInterval = num;
 			await (this.plugin as any).saveSettings();
 		  }
 		}));
@@ -240,9 +256,9 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 	  .setName('Use GitHub API')
 	  .setDesc('Use GitHub API for sync (recommended)')
 	  .addToggle(toggle => toggle
-		.setValue(this.plugin.settings.useGitHubAPI)
+		.setValue(!!s.useGitHubAPI)
 		.onChange(async (value) => {
-		  this.plugin.settings.useGitHubAPI = value;
+		  s.useGitHubAPI = value;
 		  await (this.plugin as any).saveSettings();
 		}));
 
@@ -250,11 +266,27 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 	  .setName('Configured')
 	  .setDesc('Mark as configured (enable sync)')
 	  .addToggle(toggle => toggle
-		.setValue(this.plugin.settings.isConfigured)
+		.setValue(!!s.isConfigured)
 		.onChange(async (value) => {
-		  this.plugin.settings.isConfigured = value;
+		  s.isConfigured = value;
 		  await (this.plugin as any).saveSettings();
 		}));
+
+	// Add conflict resolution strategy setting
+	new Setting(containerEl)
+	  .setName('Conflict Resolution Strategy')
+	  .setDesc('Choose how to handle file conflicts: Prompt, Take Latest, Always Keep Local, or Always Keep Remote')
+	  .addDropdown(drop => drop
+		.addOption('prompt', 'Prompt')
+		.addOption('latest', 'Take Latest')
+		.addOption('local', 'Always Keep Local')
+		.addOption('remote', 'Always Keep Remote')
+		.setValue(this.plugin.settings.conflictStrategy || 'prompt')
+		.onChange(async (value) => {
+		  this.plugin.settings.conflictStrategy = value;
+		  await (this.plugin as any).saveSettings();
+		})
+	  );
   }
 
 
@@ -272,18 +304,30 @@ class SyncLogModal extends Modal {
   onOpen() {
 	const { contentEl } = this;
 	contentEl.createEl('h2', { text: 'Sync History / Log' });
+	// Limit log display for mobile performance
+	const MAX_LOGS = 100;
 	if (this.syncLog.length === 0) {
 	  contentEl.createEl('p', { text: 'No sync events yet.' });
 	  return;
 	}
+	// Clear Log button
+	const clearBtn = contentEl.createEl('button', { text: 'Clear Log', cls: 'mod-cta' });
+	clearBtn.onclick = () => {
+	  this.syncLog.length = 0;
+	  new Notice('Sync log cleared');
+	  this.close();
+	};
 	const list = contentEl.createEl('ul');
-	this.syncLog.slice().reverse().forEach(log => {
+	this.syncLog.slice(-MAX_LOGS).reverse().forEach(log => {
 	  const item = list.createEl('li');
 	  item.createEl('span', {
 		text: `[${new Date(log.time).toLocaleString()}] ${log.message}`,
 		cls: `sync-log-${log.type}`
 	  });
 	});
+	if (this.syncLog.length > MAX_LOGS) {
+	  contentEl.createEl('div', { text: `Showing last ${MAX_LOGS} entries (oldest hidden for performance)` });
+	}
   }
 
   onClose() {
@@ -395,4 +439,18 @@ class ConflictResolutionModal extends Modal {
 	contentEl.empty();
   }
 }
+
+// In your conflict resolution logic (wherever you handle conflicts):
+// Example usage:
+// if (this.settings.conflictStrategy === 'latest') {
+//   // Compare timestamps and pick the newest
+//   const useLocal = localTimestamp >= remoteTimestamp;
+//   // Apply the chosen version automatically
+// } else if (this.settings.conflictStrategy === 'local') {
+//   // Always keep local
+// } else if (this.settings.conflictStrategy === 'remote') {
+//   // Always keep remote
+// } else {
+//   // Prompt user (default)
+// }
 

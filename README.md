@@ -9,6 +9,9 @@ A mobile-first GitHub sync plugin for Obsidian, designed specifically for seamle
 - **Background syncing** - Automatic sync without interrupting your workflow
 - **Offline queue** - Changes are queued when offline and synced when connectivity returns
 - **Minimal taps** - Set it up once and let it work automatically
+- **Performance-aware log display** - Only the last 100 sync log entries are shown for speed on mobile
+- **Clear Log button** - Easily clear sync history from the log modal
+- **Critical sync events always shown** - Important sync status is always shown as a Notice, even if the status bar is hidden on mobile
 
 ### Smart Sync Technology
 - **Event-driven changes** - Only syncs files that have actually changed
@@ -81,7 +84,7 @@ private/**       # Private folders
 ### Advanced Options
 - **Branch selection** - Choose which Git branch to sync
 - **Commit messages** - Customize automatic commit messages
-- **Conflict handling** - Configure how conflicts are resolved
+- **Conflict handling** - Configure how conflicts are resolved (Prompt, Take Latest, Always Keep Local, Always Keep Remote)
 
 ## 🔄 How It Works
 
@@ -99,8 +102,9 @@ private/**       # Private folders
 ### Conflict Handling
 - **Non-overlapping Changes** - Automatically merged when possible
 - **True Conflicts** - Both versions saved with conflict markers
-- **User Notification** - Clear alerts when manual review is needed
+- **User Notification** - Clear alerts when manual review is needed (unless you choose automatic resolution)
 - **Data Safety** - No content is ever lost during conflicts
+- **Configurable Strategy** - Choose to always take the latest, always keep local, always keep remote, or be prompted for each conflict
 
 ## 📋 Commands
 
