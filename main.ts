@@ -781,23 +781,32 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  }
 	}
 	
-	// Find files to download (remote only)
+	// Find files to download (remote only) - BUT check for pending deletions first
 	for (const [path, remoteFile] of remoteFileMap) {
 	  if (!localFileMap.has(path)) {
-		try {
-		  const content = await this.getRemoteFileContent(remoteFile);
-		  plan.toDownload.push({ path, content, reason: 'remote-only' });
-		} catch (error) {
-		  this.log(`Error fetching remote file ${path}: ${(error as Error).message}`, 'warn');
+		// Check if this file is queued for deletion
+		const pendingChange = this.changeQueue.get(path);
+		if (pendingChange && pendingChange.type === 'delete') {
+		  // File was intentionally deleted - add to delete plan instead of download
+		  plan.toDelete.push({ path, content: '', reason: 'local-delete' });
+		} else {
+		  // File is genuinely missing locally - download it
+		  try {
+			const content = await this.getRemoteFileContent(remoteFile);
+			plan.toDownload.push({ path, content, reason: 'remote-only' });
+		  } catch (error) {
+			this.log(`Error fetching remote file ${path}: ${(error as Error).message}`, 'warn');
+		  }
 		}
 	  }
 	}
 	
 	// Calculate totals and summary
-	plan.totalOperations = plan.toUpload.length + plan.toDownload.length + plan.toResolve.length;
+	plan.totalOperations = plan.toUpload.length + plan.toDownload.length + plan.toResolve.length + plan.toDelete.length;
 	plan.summary = [
 	  plan.toUpload.length > 0 ? `${plan.toUpload.length} to upload` : null,
 	  plan.toDownload.length > 0 ? `${plan.toDownload.length} to download` : null,
+	  plan.toDelete.length > 0 ? `${plan.toDelete.length} to delete` : null,
 	  plan.toResolve.length > 0 ? `${plan.toResolve.length} conflicts` : null
 	].filter(Boolean).join(', ');
 	
@@ -869,6 +878,21 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  }
 	}
 	
+	// Delete files from remote
+	for (const item of plan.toDelete) {
+	  try {
+		updateProgress('Deleting', item.path);
+		await this.deleteRemoteFile(item.path);
+		
+		// Remove from change queue since it's been processed
+		this.changeQueue.delete(item.path);
+		
+		this.log(`Deleted from remote: ${item.path}`, 'success');
+	  } catch (error) {
+		this.log(`Failed to delete ${item.path}: ${(error as Error).message}`, 'error');
+	  }
+	}
+	
 	// Close progress modal
 	if (progressModal) {
 	  progressModal.close();
@@ -924,6 +948,44 @@ export default class MobileGitSyncPlugin extends Plugin {
 	}
 	
 	await this.app.vault.create(filePath, content);
+  }
+
+  async deleteRemoteFile(filePath: string): Promise<void> {
+	// First get the current file SHA (required for deletion)
+	const fileInfoResponse = await this.retryWithBackoff(async () => {
+	  return await requestUrl({
+		url: `https://api.github.com/repos/${this.repoOwner}/${this.repoName}/contents/${encodeURIComponent(filePath)}?ref=${this.settings.branch}`,
+		method: 'GET',
+		headers: {
+		  'Authorization': `token ${await this.getSecureToken()}`,
+		  'Accept': 'application/vnd.github.v3+json',
+		  'User-Agent': 'Obsidian-Mobile-Git-Sync'
+		}
+	  });
+	}, `Get file info for deletion: ${filePath}`);
+	
+	const fileInfo = fileInfoResponse.json;
+	if (!fileInfo.sha) {
+	  throw new Error(`Could not get SHA for file ${filePath}`);
+	}
+	
+	// Delete the file using GitHub API
+	await this.retryWithBackoff(async () => {
+	  return await requestUrl({
+		url: `https://api.github.com/repos/${this.repoOwner}/${this.repoName}/contents/${encodeURIComponent(filePath)}`,
+		method: 'DELETE',
+		headers: {
+		  'Authorization': `token ${await this.getSecureToken()}`,
+		  'Accept': 'application/vnd.github.v3+json',
+		  'User-Agent': 'Obsidian-Mobile-Git-Sync'
+		},
+		body: JSON.stringify({
+		  message: `Delete ${filePath}`,
+		  sha: fileInfo.sha,
+		  branch: this.settings.branch
+		})
+	  });
+	}, `Delete remote file: ${filePath}`);
   }
 
   async resolveConflict(filePath: string, localContent: string, remoteContent: string, localMtime?: number, remoteMtime?: number): Promise<boolean> {
@@ -1498,8 +1560,14 @@ export default class MobileGitSyncPlugin extends Plugin {
 	for (const change of changes) {
 	  try {
 		if (change.type === 'delete') {
-		  // TODO: Implement file deletion via GitHub API
-		  this.log(`Skipping delete for ${change.path} (not implemented)`, 'warn');
+		  try {
+			await this.deleteRemoteFile(change.path);
+			this.log(`Deleted from remote: ${change.path}`, 'success');
+			successCount++;
+		  } catch (error) {
+			this.log(`Failed to delete ${change.path}: ${(error as Error).message}`, 'error');
+			failureCount++;
+		  }
 		  continue;
 		}
 		
@@ -2489,6 +2557,9 @@ class SyncPlanModal extends Modal {
 	  if (this.plan.toDownload.length > 0) {
 		summary.createEl('span', { text: `⬇️ ${this.plan.toDownload.length} download`, cls: 'stat-success' });
 	  }
+	  if (this.plan.toDelete.length > 0) {
+		summary.createEl('span', { text: `🗑️ ${this.plan.toDelete.length} delete`, cls: 'stat-error' });
+	  }
 	  if (this.plan.toResolve.length > 0) {
 		summary.createEl('span', { text: `⚠️ ${this.plan.toResolve.length} conflicts`, cls: 'stat-warn' });
 	  }
@@ -2501,6 +2572,11 @@ class SyncPlanModal extends Modal {
 	  // Download section  
 	  if (this.plan.toDownload.length > 0) {
 		this.createFileSection(contentEl, '⬇️ Files to Download', this.plan.toDownload, 'modify');
+	  }
+	  
+	  // Delete section
+	  if (this.plan.toDelete.length > 0) {
+		this.createFileSection(contentEl, '🗑️ Files to Delete', this.plan.toDelete, 'delete');
 	  }
 	  
 	  // Conflicts section
@@ -2555,10 +2631,18 @@ class SyncPlanModal extends Modal {
 	  // Color coding
 	  if (type === 'create') item.style.borderLeftColor = 'var(--color-green)';
 	  else if (type === 'modify') item.style.borderLeftColor = 'var(--color-orange)';
+	  else if (type === 'delete') item.style.borderLeftColor = 'var(--color-red)';
 	  
 	  const path = item.createEl('span', { text: file.path, cls: 'git-sync-path' });
+	  
+	  let reasonText: string;
+	  if (file.reason === 'local-only') reasonText = 'Local only';
+	  else if (file.reason === 'remote-only') reasonText = 'Remote only';
+	  else if (file.reason === 'local-delete') reasonText = 'Deleted locally';
+	  else reasonText = file.reason;
+	  
 	  const reason = item.createEl('span', { 
-		text: file.reason === 'local-only' ? 'Local only' : 'Remote only', 
+		text: reasonText, 
 		cls: 'git-sync-timestamp' 
 	  });
 	  

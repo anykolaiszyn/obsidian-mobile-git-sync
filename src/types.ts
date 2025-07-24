@@ -106,7 +106,7 @@ export interface SyncPlan {
 export interface SyncFile {
 	path: string;
 	content: string;
-	reason: 'local-only' | 'remote-only' | 'conflict' | 'newer-local' | 'newer-remote';
+	reason: 'local-only' | 'remote-only' | 'conflict' | 'newer-local' | 'newer-remote' | 'local-delete';
 	size?: number;
 	lastModified?: number;
 }
