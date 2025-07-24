@@ -1,0 +1,533 @@
+/* Mobile Git Sync Plugin Enhanced Styles - Desktop & Mobile Optimized */
+
+/* Modal Base Styles */
+.git-sync-modal {
+  padding: 20px;
+  max-width: 600px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.git-sync-modal .modal-content {
+  padding: 0;
+}
+
+/* Headers and Layout */
+.git-sync-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.git-sync-header h2 {
+  margin: 0;
+  color: var(--text-accent);
+}
+
+.git-sync-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 0.85em;
+  color: var(--text-muted);
+}
+
+.git-sync-stats span {
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--background-modifier-border);
+}
+
+.stat-success { background: var(--color-green) !important; color: white; }
+.stat-error { background: var(--color-red) !important; color: white; }
+.stat-warn { background: var(--color-orange) !important; color: white; }
+.stat-info { background: var(--color-blue) !important; color: white; }
+
+/* Empty States */
+.git-sync-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--text-muted);
+}
+
+.git-sync-empty-icon {
+  font-size: 3em;
+  margin-bottom: 16px;
+  opacity: 0.6;
+}
+
+/* File Changes */
+.git-sync-section {
+  margin-bottom: 20px;
+}
+
+.git-sync-section h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.1em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.git-sync-type-create { color: var(--color-green); }
+.git-sync-type-modify { color: var(--color-orange); }
+.git-sync-type-delete { color: var(--color-red); }
+
+.git-sync-changes-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.git-sync-change-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  margin: 4px 0;
+  background: var(--background-secondary);
+  border-radius: 6px;
+  border-left: 3px solid var(--text-muted);
+}
+
+.git-sync-change-item:hover {
+  background: var(--background-modifier-hover);
+}
+
+.git-sync-path {
+  font-family: var(--font-monospace);
+  font-size: 0.9em;
+  flex: 1;
+}
+
+.git-sync-timestamp {
+  color: var(--text-muted);
+  font-size: 0.8em;
+  margin-left: 8px;
+}
+
+.git-sync-preview-btn {
+  padding: 2px 6px;
+  background: var(--background-modifier-border);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8em;
+  margin-left: 8px;
+}
+
+.git-sync-preview-btn:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* Actions */
+.git-sync-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.git-sync-actions button {
+  padding: 8px 16px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.2s ease;
+}
+
+.git-sync-actions button:hover {
+  background: var(--background-modifier-hover);
+  transform: translateY(-1px);
+}
+
+.git-sync-actions button.mod-cta {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+.git-sync-actions button.mod-warning {
+  background: var(--color-red);
+  color: white;
+  border-color: var(--color-red);
+}
+
+/* Input Components */
+.git-sync-input-container {
+  margin-bottom: 16px;
+}
+
+.git-sync-input-container label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+.git-sync-commit-input {
+  width: 100%;
+  min-height: 80px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: var(--font-text);
+  resize: vertical;
+}
+
+.git-sync-commit-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--interactive-accent-hover);
+}
+
+/* Suggestions */
+.git-sync-suggestions {
+  margin-bottom: 16px;
+}
+
+.git-sync-suggestions label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+.git-sync-suggestion-btn {
+  padding: 6px 12px;
+  margin: 4px 4px 4px 0;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 16px;
+  cursor: pointer;
+  font-size: 0.85em;
+  color: var(--text-normal);
+  transition: all 0.2s ease;
+}
+
+.git-sync-suggestion-btn:hover {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  transform: translateY(-1px);
+}
+
+/* Options */
+.git-sync-options {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+}
+
+.git-sync-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  cursor: pointer;
+}
+
+.git-sync-options input[type="checkbox"] {
+  margin: 0;
+}
+
+/* Strategy Selection */
+.git-sync-strategy {
+  margin-bottom: 20px;
+}
+
+.git-sync-strategy h3 {
+  margin: 0 0 12px 0;
+  color: var(--text-normal);
+}
+
+.git-sync-strategy-option {
+  display: block;
+  padding: 12px;
+  margin-bottom: 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.git-sync-strategy-option:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--interactive-accent);
+}
+
+.git-sync-strategy-option input[type="radio"] {
+  margin-right: 8px;
+}
+
+/* File Preview */
+.git-sync-preview-modal {
+  max-width: 800px;
+}
+
+.git-sync-file-info {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+  font-size: 0.9em;
+}
+
+.git-sync-preview-content {
+  background: var(--background-primary-alt);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 16px;
+  font-family: var(--font-monospace);
+  font-size: 0.85em;
+  line-height: 1.4;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Branch Management */
+.git-sync-current-branch {
+  margin-bottom: 16px;
+  padding: 12px;
+  background: var(--background-secondary);
+  border-radius: 6px;
+  border-left: 4px solid var(--interactive-accent);
+}
+
+.git-sync-common-branches {
+  margin-bottom: 16px;
+}
+
+.git-sync-common-branches label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.9em;
+  color: var(--text-muted);
+}
+
+.git-sync-branch-btn {
+  padding: 6px 12px;
+  margin: 4px 4px 4px 0;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85em;
+  font-family: var(--font-monospace);
+  transition: all 0.2s ease;
+}
+
+.git-sync-branch-btn:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--interactive-accent);
+}
+
+/* Log Display */
+.git-sync-filters {
+  margin-bottom: 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.git-sync-filters select {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--background-modifier-border);
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.git-sync-log-container {
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.git-sync-log-entry {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  font-size: 0.85em;
+}
+
+.git-sync-log-entry:last-child {
+  border-bottom: none;
+}
+
+.git-sync-log-entry.log-error {
+  background: rgba(var(--color-red-rgb), 0.1);
+}
+
+.git-sync-log-entry.log-warn {
+  background: rgba(var(--color-orange-rgb), 0.1);
+}
+
+.git-sync-log-entry.log-success {
+  background: rgba(var(--color-green-rgb), 0.1);
+}
+
+.git-sync-log-time {
+  color: var(--text-muted);
+  font-family: var(--font-monospace);
+  min-width: 80px;
+}
+
+.git-sync-log-level {
+  min-width: 20px;
+}
+
+.git-sync-log-message {
+  flex: 1;
+  word-wrap: break-word;
+}
+
+.git-sync-log-details {
+  margin-top: 4px;
+  font-family: var(--font-monospace);
+  font-size: 0.8em;
+}
+
+.git-sync-log-details pre {
+  background: var(--background-primary-alt);
+  padding: 8px;
+  border-radius: 4px;
+  margin: 4px 0 0 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+/* Progress Indicators */
+.git-sync-progress-modal {
+  text-align: center;
+}
+
+.git-sync-current-step {
+  margin-bottom: 20px;
+  font-size: 1.1em;
+  color: var(--text-normal);
+}
+
+.git-sync-progress-container {
+  margin-bottom: 16px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  overflow: hidden;
+  height: 8px;
+}
+
+.git-sync-progress-bar {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.git-sync-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--interactive-accent), var(--interactive-accent-hover));
+  transition: width 0.3s ease;
+  width: 0%;
+}
+
+.git-sync-progress-text {
+  font-weight: 500;
+  color: var(--text-normal);
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+  .git-sync-modal {
+    padding: 16px;
+    max-width: 95vw;
+  }
+  
+  .git-sync-actions {
+    flex-direction: column;
+  }
+  
+  .git-sync-actions button {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  
+  .git-sync-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .git-sync-stats {
+    flex-wrap: wrap;
+  }
+  
+  .git-sync-change-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .git-sync-log-entry {
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .git-sync-log-time {
+    min-width: auto;
+  }
+}
+
+/* Dark theme adjustments */
+.theme-dark .git-sync-modal {
+  background: var(--background-primary);
+}
+
+.theme-dark .git-sync-preview-content {
+  background: var(--background-primary);
+}
+
+/* Animation for status updates */
+@keyframes pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.6; }
+  100% { opacity: 1; }
+}
+
+.git-sync-syncing {
+  animation: pulse 1.5s infinite;
+}
+
+/* Hover effects for better UX */
+.git-sync-change-item:hover .git-sync-preview-btn {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+/* Focus states for accessibility */
+.git-sync-modal button:focus,
+.git-sync-modal input:focus,
+.git-sync-modal select:focus {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+/* Smooth transitions */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}

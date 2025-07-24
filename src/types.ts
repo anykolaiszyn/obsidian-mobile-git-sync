@@ -4,6 +4,27 @@
  * This file contains TypeScript type definitions for the Mobile Git Sync plugin.
  */
 
+export interface PluginSettings {
+	repoUrl: string;
+	githubToken: string;
+	branch: string;
+	excludePatterns: string[];
+	syncFolders: string[];
+	autoSyncInterval: number;
+	useGitHubAPI: boolean;
+	isConfigured: boolean;
+	conflictStrategy: ConflictStrategy;
+}
+
+export type ConflictStrategy = 'prompt' | 'latest' | 'local' | 'remote';
+
+export interface FileChange {
+	path: string;
+	type: 'create' | 'modify' | 'delete';
+	timestamp: number;
+	content?: string;
+}
+
 export interface SyncStatus {
 	isOnline: boolean;
 	isSyncing: boolean;
@@ -18,6 +39,19 @@ export interface GitHubApiResponse {
 	content: string;
 	encoding: string;
 	message?: string;
+	commit?: {
+		committer?: {
+			date: string;
+		};
+	};
+	git_url?: string;
+}
+
+export interface GitHubFileInfo {
+	path: string;
+	type: 'file' | 'dir';
+	download_url?: string;
+	sha: string;
 }
 
 export interface ConflictFile {
@@ -25,6 +59,8 @@ export interface ConflictFile {
 	localContent: string;
 	remoteContent: string;
 	timestamp: number;
+	localMtime?: number;
+	remoteMtime?: number;
 }
 
 export interface SyncOperation {
@@ -42,11 +78,42 @@ export interface RepoInfo {
 	isPrivate: boolean;
 }
 
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'success';
 
 export interface LogEntry {
 	timestamp: number;
 	level: LogLevel;
 	message: string;
-	data?: any;
+	data?: unknown;
+}
+
+export interface RetryConfig {
+	maxRetries: number;
+	initialDelay: number;
+	maxDelay: number;
+	backoffFactor: number;
+}
+
+export interface SyncPlan {
+	toUpload: SyncFile[];
+	toDownload: SyncFile[];
+	toResolve: ConflictFile[];
+	toDelete: SyncFile[];
+	summary: string;
+	totalOperations: number;
+}
+
+export interface SyncFile {
+	path: string;
+	content: string;
+	reason: 'local-only' | 'remote-only' | 'conflict' | 'newer-local' | 'newer-remote';
+	size?: number;
+	lastModified?: number;
+}
+
+export interface VaultScanResult {
+	totalFiles: number;
+	scannedFiles: string[];
+	excludedFiles: string[];
+	errors: string[];
 }
