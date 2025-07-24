@@ -16,7 +16,7 @@ export default class MobileGitSyncPlugin extends Plugin {
   private offlineHandler!: () => void;
   private ribbonIcon: HTMLElement | null = null;
   private syncInProgress: boolean = false;
-  private lastSyncTime: number = 0;
+  lastSyncTime: number = 0;
   currentBranch: string = '';
   
   settings!: PluginSettings;
@@ -195,6 +195,13 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  id: 'mobile-git-sync-show-sync-plan',
 	  name: '📊 Show Sync Plan',
 	  callback: () => this.showSyncPlan(),
+	});
+	
+	this.addCommand({
+	  id: 'mobile-git-sync-bulk-operations',
+	  name: '⚡ Bulk Operations',
+	  callback: () => this.showBulkOperations(),
+	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'k' }]
 	});
 
 	// Register the settings tab so the configuration UI appears
@@ -1046,6 +1053,15 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  new Notice('Failed to create sync plan. Check logs for details.');
 	  this.updateStatusBar('Sync plan failed');
 	}
+  }
+
+  async showBulkOperations(): Promise<void> {
+	if (!this.settings.isConfigured) {
+	  new Notice('Git sync not configured. Check settings.');
+	  return;
+	}
+	
+	new BulkOperationsModal(this.app, this).open();
   }
 
   onunload() {
@@ -2240,19 +2256,103 @@ class QuickCommitModal extends Modal {
 	  delete: changes.filter(c => c.type === 'delete').length
 	};
 	
-	if (types.create > 0 && types.modify === 0 && types.delete === 0) {
-	  suggestions.push(`Add ${types.create} new file${types.create > 1 ? 's' : ''}`);
-	}
-	if (types.modify > 0 && types.create === 0 && types.delete === 0) {
-	  suggestions.push(`Update ${types.modify} file${types.modify > 1 ? 's' : ''}`);
-	}
-	if (types.delete > 0 && types.create === 0 && types.modify === 0) {
-	  suggestions.push(`Remove ${types.delete} file${types.delete > 1 ? 's' : ''}`);
+	// Smart messages based on file types and patterns
+	const filesByType = this.categorizeFiles(changes);
+	
+	// Single file operations - be specific
+	if (changes.length === 1) {
+	  const change = changes[0];
+	  const fileName = change.path.split('/').pop()?.replace('.md', '') || 'file';
+	  
+	  if (change.type === 'create') {
+		suggestions.push(`Add ${fileName}`, `Create: ${fileName}`, `New note: ${fileName}`);
+	  } else if (change.type === 'modify') {
+		suggestions.push(`Update ${fileName}`, `Edit: ${fileName}`, `Revise ${fileName}`);
+	  } else if (change.type === 'delete') {
+		suggestions.push(`Remove ${fileName}`, `Delete: ${fileName}`, `Clean up ${fileName}`);
+	  }
 	}
 	
-	suggestions.push('Update notes', 'Daily sync', 'Mobile update');
+	// Multi-file operations - be descriptive
+	else {
+	  // Context-aware messages
+	  if (filesByType.dailyNotes > 0) {
+		suggestions.push('📅 Daily notes update', '✍️ Journal entries sync');
+	  }
+	  if (filesByType.projectFiles > 0) {
+		suggestions.push('💼 Project documentation', '🔧 Work notes update');
+	  }
+	  if (filesByType.attachments > 0) {
+		suggestions.push('📎 Add media files', '🖼️ Sync attachments');
+	  }
+	  
+	  // Generic but descriptive
+	  if (types.create > 0 && types.modify === 0 && types.delete === 0) {
+		suggestions.push(`✨ Add ${types.create} new file${types.create > 1 ? 's' : ''}`, `📝 Create ${types.create} notes`);
+	  }
+	  if (types.modify > 0 && types.create === 0 && types.delete === 0) {
+		suggestions.push(`📝 Update ${types.modify} file${types.modify > 1 ? 's' : ''}`, `✏️ Revise ${types.modify} notes`);
+	  }
+	  if (types.delete > 0 && types.create === 0 && types.modify === 0) {
+		suggestions.push(`🗑️ Remove ${types.delete} file${types.delete > 1 ? 's' : ''}`, `🧹 Clean up ${types.delete} files`);
+	  }
+	  
+	  // Mixed operations
+	  if (types.create > 0 && types.modify > 0) {
+		suggestions.push('🚀 Add new content and updates', '📚 Expand knowledge base');
+	  }
+	  if (types.modify > 0 && types.delete > 0) {
+		suggestions.push('🔄 Update and cleanup notes', '📂 Reorganize content');
+	  }
+	}
 	
-	return suggestions;
+	// Time-based context
+	const hour = new Date().getHours();
+	if (hour < 12) {
+	  suggestions.push('🌅 Morning notes update', '☕ Early work sync');
+	} else if (hour < 17) {
+	  suggestions.push('☀️ Afternoon progress', '📈 Midday sync');
+	} else {
+	  suggestions.push('🌙 Evening wrap-up', '🏁 End of day sync');
+	}
+	
+	// Device context
+	if ((this.plugin.app as any).isMobile) {
+	  suggestions.push('📱 Mobile updates', '🚶 On-the-go notes');
+	} else {
+	  suggestions.push('💻 Desktop work session', '🎯 Focused writing time');
+	}
+	
+	// Fallbacks
+	suggestions.push('📝 Update notes', '🔄 Sync progress', '🧠 Knowledge base update');
+	
+	return suggestions.slice(0, 8); // Limit to 8 suggestions
+  }
+
+  private categorizeFiles(changes: FileChange[]): {dailyNotes: number, projectFiles: number, attachments: number} {
+	let dailyNotes = 0;
+	let projectFiles = 0;
+	let attachments = 0;
+	
+	for (const change of changes) {
+	  const path = change.path.toLowerCase();
+	  const fileName = path.split('/').pop() || '';
+	  
+	  // Daily notes patterns
+	  if (/\d{4}-\d{2}-\d{2}/.test(fileName) || path.includes('daily') || path.includes('journal')) {
+		dailyNotes++;
+	  }
+	  // Project files
+	  else if (path.includes('project') || path.includes('work') || path.includes('meeting')) {
+		projectFiles++;
+	  }
+	  // Attachments
+	  else if (/\.(png|jpg|jpeg|gif|pdf|mp3|mp4|doc|docx)$/i.test(fileName)) {
+		attachments++;
+	  }
+	}
+	
+	return {dailyNotes, projectFiles, attachments};
   }
   
   onClose() {
@@ -2278,49 +2378,190 @@ class ConflictResolutionModal extends Modal {
 
   onOpen() {
 	const { contentEl } = this;
-	contentEl.empty();
-	contentEl.createEl('h2', { text: 'Resolve Conflict' });
-	contentEl.createEl('div', { text: `File: ${this.filePath}` });
-
-	// Local version
-	contentEl.createEl('h3', { text: 'Local Version' });
-	const localArea = contentEl.createEl('textarea');
-	localArea.value = this.localContent;
-	localArea.style.width = '100%';
-	localArea.style.height = '100px';
-
-	// Remote version
-	contentEl.createEl('h3', { text: 'Remote Version' });
-	const remoteArea = contentEl.createEl('textarea');
-	remoteArea.value = this.remoteContent;
-	remoteArea.style.width = '100%';
-	remoteArea.style.height = '100px';
-
-	// Merge area
-	contentEl.createEl('h3', { text: 'Merged (Edit to resolve)' });
-	const mergeArea = contentEl.createEl('textarea');
+	contentEl.addClass('git-sync-modal');
+	contentEl.addClass('git-sync-conflict-modal');
+	
+	// Header with file info
+	const header = contentEl.createEl('div', { cls: 'git-sync-header' });
+	header.createEl('h2', { text: '⚠️ Conflict Resolution' });
+	
+	const fileInfo = contentEl.createEl('div', { cls: 'git-sync-file-info' });
+	fileInfo.createEl('div', { text: `📄 ${this.filePath}` });
+	fileInfo.createEl('div', { text: 'Choose how to resolve this conflict', cls: 'text-muted' });
+	
+	// Quick actions bar
+	const quickActions = contentEl.createEl('div', { cls: 'git-sync-quick-actions' });
+	
+	const localBtn = quickActions.createEl('button', { 
+	  text: '💻 Keep Local Version', 
+	  cls: 'git-sync-quick-btn local'
+	});
+	const remoteBtn = quickActions.createEl('button', { 
+	  text: '☁️ Keep Remote Version', 
+	  cls: 'git-sync-quick-btn remote'
+	});
+	const diffBtn = quickActions.createEl('button', { 
+	  text: '🔍 Show Detailed Diff', 
+	  cls: 'git-sync-quick-btn diff'
+	});
+	
+	// Content comparison area
+	const comparisonContainer = contentEl.createEl('div', { cls: 'git-sync-comparison' });
+	
+	// Side-by-side view
+	const sideBySide = comparisonContainer.createEl('div', { cls: 'git-sync-side-by-side' });
+	
+	// Local side
+	const localSide = sideBySide.createEl('div', { cls: 'git-sync-version-panel local' });
+	localSide.createEl('h3', { text: '💻 Your Local Version' });
+	const localStats = localSide.createEl('div', { cls: 'git-sync-version-stats' });
+	localStats.createEl('span', { text: `${this.localContent.split('\n').length} lines` });
+	localStats.createEl('span', { text: `${this.localContent.length} chars` });
+	
+	const localContent = localSide.createEl('div', { cls: 'git-sync-content-preview' });
+	localContent.textContent = this.localContent;
+	
+	// Remote side
+	const remoteSide = sideBySide.createEl('div', { cls: 'git-sync-version-panel remote' });
+	remoteSide.createEl('h3', { text: '☁️ Remote Version' });
+	const remoteStats = remoteSide.createEl('div', { cls: 'git-sync-version-stats' });
+	remoteStats.createEl('span', { text: `${this.remoteContent.split('\n').length} lines` });
+	remoteStats.createEl('span', { text: `${this.remoteContent.length} chars` });
+	
+	const remoteContentEl = remoteSide.createEl('div', { cls: 'git-sync-content-preview' });
+	remoteContentEl.textContent = this.remoteContent;
+	
+	// Diff view (initially hidden)
+	const diffView = comparisonContainer.createEl('div', { cls: 'git-sync-diff-view' });
+	diffView.style.display = 'none';
+	diffView.createEl('h3', { text: '🔍 Detailed Differences' });
+	const diffContent = diffView.createEl('div', { cls: 'git-sync-diff-content' });
+	this.generateDiff(diffContent);
+	
+	// Manual merge area
+	const mergeSection = contentEl.createEl('div', { cls: 'git-sync-merge-section' });
+	mergeSection.style.display = 'none';
+	mergeSection.createEl('h3', { text: '✏️ Manual Merge (Advanced)' });
+	mergeSection.createEl('div', { 
+	  text: 'Edit the content below to create your own merged version:', 
+	  cls: 'text-muted' 
+	});
+	
+	const mergeArea = mergeSection.createEl('textarea', { cls: 'git-sync-merge-textarea' });
 	mergeArea.value = this.localContent;
-	mergeArea.style.width = '100%';
-	mergeArea.style.height = '100px';
-
-	// Buttons
-	const buttonRow = contentEl.createEl('div', { cls: 'conflict-modal-buttons' });
-	const keepLocalBtn = buttonRow.createEl('button', { text: 'Keep Local' });
-	const keepRemoteBtn = buttonRow.createEl('button', { text: 'Keep Remote' });
-	const keepMergedBtn = buttonRow.createEl('button', { text: 'Keep Merged' });
-
-	keepLocalBtn.onclick = () => {
+	
+	// Action buttons
+	const actions = contentEl.createEl('div', { cls: 'git-sync-actions' });
+	
+	const manualMergeBtn = actions.createEl('button', { 
+	  text: '✏️ Manual Merge', 
+	  cls: 'git-sync-manual-merge-btn'
+	});
+	
+	const finalLocalBtn = actions.createEl('button', { 
+	  text: '💻 Use Local', 
+	  cls: 'mod-cta local'
+	});
+	const finalRemoteBtn = actions.createEl('button', { 
+	  text: '☁️ Use Remote', 
+	  cls: 'mod-cta remote'
+	});
+	const cancelBtn = actions.createEl('button', { text: 'Cancel' });
+	
+	// Event handlers
+	diffBtn.onclick = () => {
+	  const isVisible = diffView.style.display !== 'none';
+	  diffView.style.display = isVisible ? 'none' : 'block';
+	  diffBtn.textContent = isVisible ? '🔍 Show Detailed Diff' : '📋 Hide Diff';
+	};
+	
+	manualMergeBtn.onclick = () => {
+	  const isVisible = mergeSection.style.display !== 'none';
+	  mergeSection.style.display = isVisible ? 'none' : 'block';
+	  manualMergeBtn.textContent = isVisible ? '✏️ Manual Merge' : '📋 Hide Merge Editor';
+	  if (!isVisible) mergeArea.focus();
+	};
+	
+	localBtn.onclick = finalLocalBtn.onclick = () => {
 	  this.close();
 	  this.onResolve('local');
 	};
-	keepRemoteBtn.onclick = () => {
+	
+	remoteBtn.onclick = finalRemoteBtn.onclick = () => {
 	  this.close();
 	  this.onResolve('remote');
 	};
-	keepMergedBtn.onclick = () => {
+	
+	cancelBtn.onclick = () => {
+	  this.close();
+	};
+	
+	// Handle manual merge submission
+	const submitMergeBtn = actions.createEl('button', { 
+	  text: '✅ Use Manual Merge', 
+	  cls: 'mod-cta merge'
+	});
+	submitMergeBtn.style.display = 'none';
+	
+	mergeArea.oninput = () => {
+	  submitMergeBtn.style.display = mergeSection.style.display !== 'none' ? 'block' : 'none';
+	};
+	
+	submitMergeBtn.onclick = () => {
 	  this.close();
 	  this.onResolve(mergeArea.value);
 	};
+  }
+
+  private generateDiff(container: HTMLElement): void {
+	const localLines = this.localContent.split('\n');
+	const remoteLines = this.remoteContent.split('\n');
+	
+	// Simple line-by-line diff
+	const maxLines = Math.max(localLines.length, remoteLines.length);
+	
+	for (let i = 0; i < maxLines; i++) {
+	  const localLine = localLines[i] || '';
+	  const remoteLine = remoteLines[i] || '';
+	  
+	  if (localLine !== remoteLine) {
+		// Show difference
+		const diffLine = container.createEl('div', { cls: 'git-sync-diff-line' });
+		
+		if (localLine && !remoteLine) {
+		  // Line only in local (removed in remote)
+		  diffLine.addClass('diff-removed');
+		  diffLine.createEl('span', { text: '- ', cls: 'diff-marker' });
+		  diffLine.createEl('span', { text: localLine, cls: 'diff-content' });
+		} else if (!localLine && remoteLine) {
+		  // Line only in remote (added in remote)
+		  diffLine.addClass('diff-added');
+		  diffLine.createEl('span', { text: '+ ', cls: 'diff-marker' });
+		  diffLine.createEl('span', { text: remoteLine, cls: 'diff-content' });
+		} else {
+		  // Line modified
+		  const removedLine = container.createEl('div', { cls: 'git-sync-diff-line diff-removed' });
+		  removedLine.createEl('span', { text: '- ', cls: 'diff-marker' });
+		  removedLine.createEl('span', { text: localLine, cls: 'diff-content' });
+		  
+		  const addedLine = container.createEl('div', { cls: 'git-sync-diff-line diff-added' });
+		  addedLine.createEl('span', { text: '+ ', cls: 'diff-marker' });
+		  addedLine.createEl('span', { text: remoteLine, cls: 'diff-content' });
+		}
+	  } else if (localLine) {
+		// Unchanged line
+		const diffLine = container.createEl('div', { cls: 'git-sync-diff-line diff-unchanged' });
+		diffLine.createEl('span', { text: '  ', cls: 'diff-marker' });
+		diffLine.createEl('span', { text: localLine, cls: 'diff-content' });
+	  }
+	}
+	
+	if (maxLines === 0) {
+	  container.createEl('div', { 
+		text: 'Both versions are empty', 
+		cls: 'text-muted' 
+	  });
+	}
   }
 
   onClose() {
@@ -2731,6 +2972,215 @@ class ProgressModal extends Modal {
 	if (this.currentStepEl && currentStep) {
 	  this.currentStepEl.textContent = currentStep;
 	}
+  }
+  
+  onClose() {
+	const { contentEl } = this;
+	contentEl.empty();
+  }
+}
+
+// Bulk Operations Modal - Advanced batch processing
+class BulkOperationsModal extends Modal {
+  plugin: MobileGitSyncPlugin;
+  
+  constructor(app: App, plugin: MobileGitSyncPlugin) {
+	super(app);
+	this.plugin = plugin;
+  }
+  
+  onOpen() {
+	const { contentEl } = this;
+	contentEl.addClass('git-sync-modal');
+	contentEl.addClass('git-sync-bulk-modal');
+	
+	// Header
+	const header = contentEl.createEl('div', { cls: 'git-sync-header' });
+	header.createEl('h2', { text: '⚡ Bulk Operations' });
+	
+	const subtitle = contentEl.createEl('div', { cls: 'git-sync-subtitle' });
+	subtitle.createEl('p', { text: 'Perform advanced operations on multiple files at once' });
+	
+	// Quick operations section
+	const quickOps = contentEl.createEl('div', { cls: 'git-sync-quick-ops' });
+	quickOps.createEl('h3', { text: '🚀 Quick Operations' });
+	
+	const quickGrid = quickOps.createEl('div', { cls: 'git-sync-quick-grid' });
+	
+	this.createQuickOpButton(quickGrid, '🔄 Sync All Pending', 'Sync all queued changes', async () => {
+	  this.close();
+	  await this.plugin.performSync();
+	});
+	
+	this.createQuickOpButton(quickGrid, '📁 Sync Entire Vault', 'Force scan and sync everything', async () => {
+	  this.close();
+	  await this.plugin.performInitialVaultScan();
+	  await this.plugin.fullSync();
+	});
+	
+	this.createQuickOpButton(quickGrid, '📝 Push All Local', 'Upload all local files', async () => {
+	  this.close();
+	  await this.plugin.pushAllLocal();
+	});
+	
+	this.createQuickOpButton(quickGrid, '☁️ Pull All Remote', 'Download all remote files', async () => {
+	  this.close();
+	  await this.plugin.pullFromRemote();
+	});
+	
+	this.createQuickOpButton(quickGrid, '🧹 Clear Queue', 'Clear all pending changes', () => {
+	  this.plugin.changeQueue.clear();
+	  new Notice('✅ Change queue cleared');
+	});
+	
+	this.createQuickOpButton(quickGrid, '📊 Generate Report', 'Create sync status report', () => {
+	  this.generateSyncReport();
+	});
+	
+	// Advanced operations
+	const advancedOps = contentEl.createEl('div', { cls: 'git-sync-advanced-section' });
+	advancedOps.createEl('h3', { text: '🔧 Advanced Operations' });
+	
+	const advancedGrid = advancedOps.createEl('div', { cls: 'git-sync-advanced-grid' });
+	
+	this.createAdvancedOpButton(advancedGrid, '⚡ Force Push', 'Override remote with local', 'warning', () => {
+	  this.plugin.showForcePushModal();
+	  this.close();
+	});
+	
+	this.createAdvancedOpButton(advancedGrid, '🔄 Reset Branch', 'Reset to match remote', 'danger', () => {
+	  this.showResetConfirmation();
+	});
+	
+	this.createAdvancedOpButton(advancedGrid, '📈 Sync Analytics', 'View detailed statistics', 'info', () => {
+	  this.showSyncAnalytics();
+	});
+	
+	// Actions
+	const actions = contentEl.createEl('div', { cls: 'git-sync-actions' });
+	const closeBtn = actions.createEl('button', { text: 'Close' });
+	closeBtn.onclick = () => this.close();
+  }
+  
+  private createQuickOpButton(container: HTMLElement, title: string, description: string, onClick: () => void): void {
+	const btn = container.createEl('div', { cls: 'git-sync-quick-op-btn' });
+	btn.createEl('div', { text: title, cls: 'git-sync-op-title' });
+	btn.createEl('div', { text: description, cls: 'git-sync-op-desc' });
+	btn.onclick = onClick;
+  }
+  
+  private createAdvancedOpButton(container: HTMLElement, title: string, description: string, type: string, onClick: () => void): void {
+	const btn = container.createEl('div', { cls: `git-sync-advanced-op-btn ${type}` });
+	btn.createEl('div', { text: title, cls: 'git-sync-op-title' });
+	btn.createEl('div', { text: description, cls: 'git-sync-op-desc' });
+	btn.onclick = onClick;
+  }
+  
+  private async generateSyncReport(): Promise<void> {
+	const report = this.createSyncReport();
+	const reportFile = 'Git Sync Report.md';
+	
+	try {
+	  await this.plugin.app.vault.create(reportFile, report);
+	  new Notice(`📊 Sync report created: ${reportFile}`);
+	  
+	  // Open the report
+	  const leaf = this.plugin.app.workspace.getUnpinnedLeaf();
+	  const file = this.plugin.app.vault.getAbstractFileByPath(reportFile);
+	  if (leaf && file instanceof TFile) {
+		await leaf.openFile(file);
+	  }
+	} catch (error) {
+	  new Notice(`❌ Failed to create report: ${(error as Error).message}`);
+	}
+	this.close();
+  }
+  
+  private createSyncReport(): string {
+	const now = new Date();
+	const stats = this.getVaultStats();
+	const queueSize = this.plugin.changeQueue.size;
+	const lastSync = this.plugin.lastSyncTime ? new Date(this.plugin.lastSyncTime) : null;
+	
+	return `# Git Sync Report
+Generated: ${now.toLocaleString()}
+
+## Vault Statistics
+- **Total Files**: ${stats.totalFiles}
+- **Markdown Files**: ${stats.markdownFiles}
+- **Other Files**: ${stats.otherFiles}
+- **Total Size**: ${this.formatBytes(stats.totalSize)}
+
+## Sync Status
+- **Pending Changes**: ${queueSize}
+- **Last Sync**: ${lastSync ? lastSync.toLocaleString() : 'Never'}
+- **Auto-sync**: ${this.plugin.settings.autoSyncInterval > 0 ? 'Enabled' : 'Disabled'}
+- **Branch**: ${this.plugin.settings.branch}
+
+## Recent Activity
+${this.getRecentActivity()}
+
+## Configuration
+- **Repository**: ${this.plugin.settings.repoUrl}
+- **Conflict Strategy**: ${this.plugin.settings.conflictStrategy}
+- **Exclude Patterns**: ${this.plugin.settings.excludePatterns.join(', ') || 'None'}
+- **Sync Folders**: ${this.plugin.settings.syncFolders.join(', ') || 'All'}
+
+---
+*Report generated by Mobile Git Sync plugin*
+`;
+  }
+  
+  private getVaultStats(): {totalFiles: number, markdownFiles: number, otherFiles: number, totalSize: number} {
+	const files = this.plugin.app.vault.getAllLoadedFiles();
+	let totalFiles = 0;
+	let markdownFiles = 0;
+	let otherFiles = 0;
+	let totalSize = 0;
+	
+	for (const file of files) {
+	  if (file instanceof TFile) {
+		totalFiles++;
+		totalSize += file.stat.size;
+		if (file.extension === 'md') {
+		  markdownFiles++;
+		} else {
+		  otherFiles++;
+		}
+	  }
+	}
+	
+	return {totalFiles, markdownFiles, otherFiles, totalSize};
+  }
+  
+  private formatBytes(bytes: number): string {
+	if (bytes < 1024) return `${bytes} B`;
+	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  }
+  
+  private getRecentActivity(): string {
+	const recentLogs = this.plugin.syncLog.slice(-10);
+	if (recentLogs.length === 0) {
+	  return '- No recent activity';
+	}
+	
+	return recentLogs.map(log => {
+	  const time = new Date(log.timestamp).toLocaleTimeString();
+	  const emoji = log.level === 'success' ? '✅' : log.level === 'error' ? '❌' : 'ℹ️';
+	  return `- ${time} ${emoji} ${log.message}`;
+	}).join('\n');
+  }
+  
+  private async showResetConfirmation(): Promise<void> {
+	const confirmed = confirm('⚠️ This will reset your local branch to match the remote. Any local changes will be lost. Are you sure?');
+	if (confirmed) {
+	  new Notice('🔄 Reset functionality coming soon');
+	}
+  }
+  
+  private async showSyncAnalytics(): Promise<void> {
+	new Notice('📈 Detailed analytics coming soon');
   }
   
   onClose() {
