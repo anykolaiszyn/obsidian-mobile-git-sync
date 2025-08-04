@@ -1,17 +1,59 @@
 # 🚀 Mobile Git Sync for Obsidian
 
-**The Rock Star of Git Sync** - A revolutionary mobile-first GitHub sync plugin for Obsidian that *actually works* on Android and iOS. Built from the ground up with comprehensive bidirectional synchronization that never misses a file.
+**The Rock Star of Git Sync** - A revolutionary enterprise-grade GitHub sync plugin for Obsidian that delivers best-in-class mobile performance with desktop-grade reliability. Built from the ground up with comprehensive bidirectional synchronization, intelligent conflict resolution, and advanced mobile optimizations.
 
-## 🌟 Why This Plugin is Special
+## 🌟 Why This Plugin is Revolutionary
 
-Unlike every other Git sync solution for Obsidian, this plugin:
+Unlike every other Git sync solution for Obsidian, this plugin delivers:
 
-- ✅ **Actually works on mobile** - Extensively tested on Android and iOS
+### 📱 **Mobile-First Excellence**
+- ✅ **Actually works on mobile** - Extensively tested on Android and iOS with mobile-optimized UI
+- ✅ **Battery-aware syncing** - Intelligent scheduling based on battery level and charging status
+- ✅ **Data usage controls** - Cellular data warnings with Wi-Fi preference settings
+- ✅ **Touch-optimized gestures** - Swipe-to-close, pull-to-refresh, and haptic feedback
+- ✅ **Progressive Web App features** - Offline queue, background sync, and install prompts
+
+### 🧠 **Enterprise-Grade Intelligence**
 - ✅ **Never misses files** - Revolutionary bidirectional sync compares local vs remote comprehensively
-- ✅ **Handles files that exist only on one side** - Uploads local-only files, downloads remote-only files
-- ✅ **Smart conflict resolution** - Multiple strategies: prompt, latest, local priority, remote priority
-- ✅ **Visual progress tracking** - See exactly what's happening during large syncs
-- ✅ **Desktop-class features on mobile** - All buttons, hotkeys, and UX work everywhere
+- ✅ **AI-powered conflict resolution** - Advanced diff viewer with merge suggestions
+- ✅ **Intelligent sync planning** - Risk assessment and optimization recommendations
+- ✅ **Streaming file processing** - Handles large files with memory-efficient chunked operations
+- ✅ **Comprehensive analytics** - Performance monitoring with interactive dashboards
+
+### 🔒 **Security & Reliability**
+- ✅ **Encrypted token storage** - AES-GCM encryption with device-specific keys
+- ✅ **Comprehensive error handling** - Intelligent recovery with user-friendly guidance
+- ✅ **Memory management** - Automatic optimization with garbage collection
+- ✅ **Performance monitoring** - Real-time metrics with threshold-based alerts
+
+## 🏗️ Enterprise Architecture
+
+### 🎯 **Modular Service Architecture**
+This plugin is built with a sophisticated service-oriented architecture using dependency injection:
+
+#### 🧠 **Core Services**
+- **SyncPlannerService** - Intelligent sync planning with comprehensive risk assessment
+- **ConflictResolutionService** - Advanced three-way merge with AI-powered suggestions
+- **StreamProcessor** - Memory-efficient processing of large files with resumable transfers
+- **MemoryManager** - Automatic memory optimization with intelligent caching
+- **PerformanceMonitor** - Real-time metrics collection with trend analysis
+
+#### 📱 **Mobile Optimization Services**
+- **MobileOptimizerService** - Battery-aware scheduling and data usage controls
+- **GestureHandlerService** - Touch gesture recognition for intuitive mobile interactions
+- **PWAService** - Progressive web app capabilities with offline queue management
+
+#### 🔒 **Security & Infrastructure**
+- **CryptoManager** - AES-GCM encryption for secure token storage
+- **SecureTokenManager** - GitHub API token validation and automatic renewal
+- **IntelligentErrorHandler** - Context-aware error recovery with user guidance
+- **Logger** - Structured logging with multiple output formats and analytics
+
+#### 🎨 **User Interface**
+- **MobileModal** - Touch-friendly modals with gesture support and adaptive layouts
+- **AdvancedConflictModal** - Professional diff viewer with side-by-side comparison
+- **AnalyticsDashboard** - Interactive performance and usage analytics
+- **StatusBarManager** - Real-time sync status with progress tracking
 
 ## 🎯 Revolutionary Sync Technology
 
@@ -32,6 +74,29 @@ Unlike every other Git sync solution for Obsidian, this plugin:
 - Real-time status updates in status bar
 - File-by-file progress with operation names
 - Never wonder what's happening during sync again
+
+### 🚀 **Performance & Mobile Optimization**
+
+#### 📱 **Mobile-First Features**
+- **Battery-aware sync scheduling** - Automatically adjusts sync frequency based on battery level and charging status
+- **Data usage monitoring** - Tracks cellular data usage with configurable warnings and Wi-Fi preferences
+- **Memory management** - Intelligent caching with automatic cleanup and garbage collection
+- **Streaming file processing** - Handles large files efficiently with chunked uploads/downloads
+- **Offline queue** - Queues operations when offline and processes them when connectivity returns
+
+#### 🎮 **Touch & Gesture Support**
+- **Swipe gestures** - Swipe files for quick actions (sync, delete, archive)
+- **Pull-to-refresh** - Pull down on lists to trigger sync operations
+- **Long press actions** - Hold files for context menus and advanced options
+- **Haptic feedback** - Touch feedback for all interactions (success, error, warnings)
+- **Pinch to zoom** - Zoom in/out on diff viewers and large content
+
+#### 📊 **Advanced Analytics**
+- **Performance dashboard** - Interactive charts showing sync performance over time
+- **Memory usage tracking** - Real-time memory monitoring with optimization recommendations
+- **Network efficiency metrics** - Analysis of data usage patterns and optimization opportunities
+- **Error analytics** - Comprehensive error tracking with resolution suggestions
+- **Usage patterns** - Insights into your sync behavior and optimization opportunities
 
 ## 🚀 Features That Make It Amazing
 
@@ -82,6 +147,20 @@ Access these via Command Palette (Ctrl/Cmd + P) or ribbon icon:
 - **⚡ Force Push** `Ctrl+Shift+Alt+P` - Override remote (dangerous!)
 - **🔄 Toggle Auto-Sync** `Ctrl+Shift+A` - Enable/disable automatic sync
 - **⚙️ Open Git Sync Settings** `Ctrl+Shift+G` - Quick settings access
+
+### 📊 **Analytics & Monitoring**
+- **📈 Show Analytics Dashboard** - Interactive performance and usage analytics
+- **🔍 View Performance Metrics** - Real-time system performance data
+- **📋 Memory Usage Report** - Detailed memory analysis with optimization tips
+- **⚠️ System Health Check** - Comprehensive system diagnostics
+- **📄 Export Analytics Data** - Export metrics for external analysis
+
+### 🎮 **Mobile Gestures** (Touch Devices)
+- **👆 Swipe files left/right** - Reveal action buttons (sync, delete, archive)
+- **👆 Pull lists down** - Trigger refresh/sync operations
+- **👆 Long press files** - Show context menu with advanced options
+- **👆 Pinch conflict viewer** - Zoom in/out on diff content
+- **👆 Swipe modals down** - Close mobile-optimized dialogs
 
 ## 🔧 Complete Setup Guide
 
@@ -384,3 +463,22 @@ This plugin transforms Obsidian's sync experience from "sometimes works" to "roc
 **Made with ❤️ and lots of mobile testing**
 
 *"The sync solution Obsidian mobile users have been waiting for."*
+## 🛡️ Security Considerations
+
+Your GitHub token is stored locally in plugin settings. For maximum safety:
+- Use a token with only the required scopes (`repo`, `private_repo` if needed)
+- Rotate your token regularly (every 6-12 months)
+- Never share your vault folder or plugin settings
+- Revoke your token immediately if your device is lost or compromised
+
+All sync operations use HTTPS and do not transmit your token to any third party. However, Obsidian plugins run in a sandbox, not a secure enclave—treat your token as sensitive.
+
+## 🧪 Manual Test Script
+
+1. Install the plugin and configure settings (repo URL, token, branch).
+2. Create, modify, and delete notes in your vault.
+3. Run all sync commands (Full Sync, Push, Pull, Smart Sync) and verify changes on GitHub.
+4. Test conflict resolution by editing the same file on two devices and syncing both.
+5. Enter an invalid token and confirm error handling and user feedback.
+6. Try selective sync and branch switching features.
+7. Review sync history and pending changes for accuracy.

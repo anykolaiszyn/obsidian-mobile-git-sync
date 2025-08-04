@@ -6,7 +6,7 @@
 
 export interface PluginSettings {
 	repoUrl: string;
-	githubToken: string;
+	githubToken: string; // Deprecated - kept for migration purposes
 	branch: string;
 	excludePatterns: string[];
 	syncFolders: string[];
@@ -14,6 +14,10 @@ export interface PluginSettings {
 	useGitHubAPI: boolean;
 	isConfigured: boolean;
 	conflictStrategy: ConflictStrategy;
+	// New security-related settings
+	useSecureStorage?: boolean;
+	lastTokenValidation?: number;
+	migrationCompleted?: boolean;
 }
 
 export type ConflictStrategy = 'prompt' | 'latest' | 'local' | 'remote';

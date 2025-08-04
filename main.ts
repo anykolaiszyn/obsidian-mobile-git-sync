@@ -1,5 +1,16 @@
 import { Plugin, Modal, App, TFile, Notice, requestUrl, Setting, PluginSettingTab, normalizePath, Menu, TFolder, moment } from 'obsidian';
 import { PluginSettings, FileChange, LogLevel, LogEntry, RetryConfig, GitHubApiResponse, GitHubFileInfo, ConflictStrategy, SyncPlan, SyncFile, VaultScanResult } from './src/types';
+import { ServiceContainer } from './src/core/container';
+import { SecureTokenManager } from './src/utils/secureStorage';
+import { IntelligentErrorHandler, ErrorContext } from './src/utils/errorHandler';
+import { InputValidator } from './src/utils/validation';
+import { Logger } from './src/utils/logger';
+import { SyncPlannerService } from './src/services/syncPlannerService';
+import { ConflictResolutionService } from './src/services/conflictService';
+import { MobileOptimizerService } from './src/services/mobileOptimizer';
+import { PerformanceMonitor } from './src/services/performanceMonitor';
+import { MemoryManager } from './src/services/memoryManager';
+import { StatusBarManager } from './src/ui/statusBarManager';
 
 
 
@@ -19,6 +30,18 @@ export default class MobileGitSyncPlugin extends Plugin {
   lastSyncTime: number = 0;
   currentBranch: string = '';
   
+  // Service container and core services
+  private container!: ServiceContainer;
+  private logger!: Logger;
+  private secureTokenManager!: SecureTokenManager;
+  private errorHandler!: IntelligentErrorHandler;
+  private syncPlanner!: SyncPlannerService;
+  private conflictResolver!: ConflictResolutionService;
+  private mobileOptimizer!: MobileOptimizerService;
+  private performanceMonitor!: PerformanceMonitor;
+  private memoryManager!: MemoryManager;
+  private statusBarManager!: StatusBarManager;
+  
   settings!: PluginSettings;
   statusBarItem: HTMLElement | null = null;
   changeQueue: Map<string, FileChange> = new Map();
@@ -29,6 +52,37 @@ export default class MobileGitSyncPlugin extends Plugin {
 
   async onload() {
 	await this.loadSettings();
+	
+	// Initialize service container
+	this.container = new ServiceContainer();
+	await this.registerServices();
+	
+	// Initialize core services
+	this.logger = await this.container.get<Logger>('logger');
+	this.secureTokenManager = await this.container.get<SecureTokenManager>('secureTokenManager');
+	this.errorHandler = await this.container.get<IntelligentErrorHandler>('errorHandler');
+	this.syncPlanner = await this.container.get<SyncPlannerService>('syncPlanner');
+	this.conflictResolver = await this.container.get<ConflictResolutionService>('conflictResolver');
+	this.mobileOptimizer = await this.container.get<MobileOptimizerService>('mobileOptimizer');
+	this.performanceMonitor = await this.container.get<PerformanceMonitor>('performanceMonitor');
+	this.memoryManager = await this.container.get<MemoryManager>('memoryManager');
+	this.statusBarManager = await this.container.get<StatusBarManager>('statusBarManager');
+	
+	// Log initialization
+	this.logger.info('Mobile Git Sync Plugin initializing', {
+	  version: this.manifest.version,
+	  platform: navigator.platform,
+	  userAgent: navigator.userAgent
+	});
+	
+	// Check for crypto support
+	if (!SecureTokenManager.isSupported()) {
+	  new Notice('Warning: Secure token storage not supported on this device. Tokens will be stored less securely.', 5000);
+	  this.logger.warn('Web Crypto API not supported - falling back to less secure storage');
+	}
+	
+	// Migrate existing plain-text token if needed
+	await this.migrateTokenStorage();
 	
 	// Initialize status bar with interactive controls
 	this.statusBarItem = this.addStatusBarItem();
@@ -82,6 +136,8 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  callback: () => this.showBranchSwitcher(),
 	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'b' }]
 	});
+
+
 	// Listen for file changes in the vault with debouncing
 	this.registerEvent(this.app.vault.on('modify', (file) => {
 	  if (file instanceof TFile && !this.isExcluded(file.path)) {
@@ -1064,7 +1120,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	new BulkOperationsModal(this.app, this).open();
   }
 
-  onunload() {
+  async onunload() {
 	this.stopAutoSync();
 	
 	// Clear debounce timer
@@ -1082,50 +1138,365 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  this.ribbonIcon.remove();
 	}
 	
-	this.log('Plugin unloaded', 'info');
+	// Dispose services
+	if (this.container) {
+	  await this.container.dispose();
+	}
+	
+	// Final log
+	if (this.logger) {
+	  this.logger.info('Plugin unloaded');
+	} else {
+	  console.log('Mobile Git Sync: Plugin unloaded');
+	}
   }
 
   private async getSecureToken(): Promise<string> {
-	if (!this.settings.githubToken) {
+	try {
+	  // Try to get token from secure storage first
+	  const secureToken = await this.secureTokenManager.getToken();
+	  if (secureToken) {
+		return secureToken;
+	  }
+	  
+	  // Fall back to settings token if secure storage is empty
+	  if (this.settings.githubToken) {
+		return this.settings.githubToken;
+	  }
+	  
 	  throw new Error('GitHub token not configured');
+	} catch (error) {
+	  await this.handleSecurityError(error, {
+		operation: 'getSecureToken',
+		timestamp: Date.now()
+	  });
+	  throw error;
 	}
-	// For now, return the token directly. In a production app, this would be encrypted
-	// Obsidian doesn't have built-in secure storage, so we rely on the app's sandboxing
-	return this.settings.githubToken;
   }
 
   async setSecureToken(token: string): Promise<void> {
-	// For now, store directly. In production, this would be encrypted
-	this.settings.githubToken = token;
-	await this.saveSettings();
+	try {
+	  // Validate token format before storing
+	  const validation = InputValidator.validateGitHubToken(token);
+	  if (!validation.isValid) {
+		throw new Error(`Invalid token: ${validation.errors.join(', ')}`);
+	  }
+	  
+	  // Store securely
+	  await this.secureTokenManager.storeToken(validation.sanitizedValue!);
+	  
+	  // Clear plain-text token from settings
+	  this.settings.githubToken = '';
+	  await this.saveSettings();
+	  
+	  // Validate the stored token
+	  const validationResult = await this.secureTokenManager.validateToken();
+	  if (!validationResult.isValid) {
+		throw new Error(`Token validation failed: ${validationResult.error}`);
+	  }
+	  
+	  new Notice('Token stored securely and validated', 3000);
+	} catch (error) {
+	  await this.handleSecurityError(error, {
+		operation: 'setSecureToken',
+		timestamp: Date.now()
+	  });
+	  throw error;
+	}
+  }
+
+  /**
+   * Migrates existing plain-text token to secure storage
+   */
+  private async migrateTokenStorage(): Promise<void> {
+	try {
+	  // Check if we have a plain-text token but no secure token
+	  const hasSecureToken = await this.secureTokenManager.hasToken();
+	  const hasPlainTextToken = this.settings.githubToken && this.settings.githubToken.length > 0;
+	  
+	  if (hasPlainTextToken && !hasSecureToken) {
+		new Notice('Migrating token to secure storage...', 2000);
+		await this.secureTokenManager.migrateFromPlainTextToken(this.settings.githubToken);
+		
+		// Clear plain-text token after successful migration
+		this.settings.githubToken = '';
+		await this.saveSettings();
+	  }
+	} catch (error) {
+	  console.error('Token migration failed:', error);
+	  new Notice('Token migration failed. Check console for details.', 5000);
+	}
+  }
+
+  /**
+   * Handles security-related errors with specialized recovery
+   */
+  private async handleSecurityError(error: Error, context: ErrorContext): Promise<void> {
+	await this.errorHandler.handleError(error, {
+	  ...context,
+	  operation: `security:${context.operation}`,
+	  networkStatus: navigator.onLine ? 'online' : 'offline',
+	  userAgent: navigator.userAgent
+	});
+  }
+
+  /**
+   * Wraps operations with intelligent error handling
+   */
+  private async withErrorHandling<T>(
+	operation: string,
+	fn: () => Promise<T>,
+	filePath?: string
+  ): Promise<T> {
+	try {
+	  return await fn();
+	} catch (error) {
+	  await this.errorHandler.handleError(error as Error, {
+		operation,
+		filePath,
+		timestamp: Date.now(),
+		networkStatus: navigator.onLine ? 'online' : 'offline',
+		userAgent: navigator.userAgent
+	  });
+	  throw error;
+	}
+  }
+
+  /**
+   * Shows user-friendly success messages
+   */
+  private showSuccess(message: string, duration: number = 3000): void {
+	new Notice(`✅ ${message}`, duration);
+  }
+
+  /**
+   * Shows user-friendly warning messages
+   */
+  private showWarning(message: string, duration: number = 4000): void {
+	new Notice(`⚠️ ${message}`, duration);
+  }
+
+  /**
+   * Shows user-friendly error messages with recovery suggestions
+   */
+  private showError(message: string, suggestion?: string, duration: number = 5000): void {
+	const fullMessage = suggestion ? `❌ ${message}\n💡 ${suggestion}` : `❌ ${message}`;
+	new Notice(fullMessage, duration);
+  }
+
+  /**
+   * Shows progress updates during long operations
+   */
+  private showProgress(current: number, total: number, operation: string): void {
+	const percentage = Math.round((current / total) * 100);
+	this.updateStatusBar(`${operation}: ${percentage}% (${current}/${total})`);
+  }
+
+  /**
+   * Attempts automatic recovery for common issues
+   */
+  private async attemptAutoRecovery(error: Error, operation: string): Promise<boolean> {
+	const message = error.message.toLowerCase();
+	
+	// Token-related recovery
+	if (message.includes('401') || message.includes('unauthorized')) {
+	  try {
+		// Try to validate and refresh token
+		const validation = await this.secureTokenManager.validateToken();
+		if (!validation.isValid) {
+		  this.showError('Authentication failed', 'Please update your GitHub token in settings');
+		  return false;
+		}
+		this.showWarning('Token validation passed, retrying operation');
+		return true;
+	  } catch (validationError) {
+		return false;
+	  }
+	}
+	
+	// Network-related recovery
+	if (message.includes('network') || message.includes('fetch')) {
+	  if (!navigator.onLine) {
+		this.showWarning('Device offline', 'Changes will sync when connection is restored');
+		return false;
+	  }
+	  
+	  // Exponential backoff retry
+	  const delay = Math.min(1000 * Math.pow(2, this.retryConfig.maxRetries), this.retryConfig.maxDelay);
+	  this.showWarning(`Network error, retrying in ${delay/1000}s`);
+	  
+	  await new Promise(resolve => setTimeout(resolve, delay));
+	  return true;
+	}
+	
+	// Rate limit recovery
+	if (message.includes('rate limit') || message.includes('403')) {
+	  this.showWarning('Rate limit reached', 'Sync will resume automatically after cooldown');
+	  // Schedule retry for later
+	  setTimeout(() => {
+		this.showWarning('Rate limit cooldown complete, resuming sync');
+	  }, 60 * 60 * 1000); // 1 hour
+	  return false;
+	}
+	
+	return false;
+  }
+
+  /**
+   * Enhanced sync operation with auto-recovery
+   */
+  private async performOperationWithRecovery<T>(
+	operation: string,
+	fn: () => Promise<T>,
+	maxRetries: number = 3
+  ): Promise<T> {
+	let lastError: Error;
+	
+	for (let attempt = 0; attempt < maxRetries; attempt++) {
+	  try {
+		return await fn();
+	  } catch (error) {
+		lastError = error as Error;
+		
+		if (attempt < maxRetries - 1) {
+		  const canRecover = await this.attemptAutoRecovery(lastError, operation);
+		  if (canRecover) {
+			continue; // Retry the operation
+		  }
+		}
+		
+		// Final attempt failed or no recovery possible
+		break;
+	  }
+	}
+	
+	// All retries failed, use intelligent error handling
+	await this.errorHandler.handleError(lastError, {
+	  operation,
+	  timestamp: Date.now(),
+	  details: { attempts: maxRetries, lastAttempt: Date.now() },
+	  networkStatus: navigator.onLine ? 'online' : 'offline',
+	  userAgent: navigator.userAgent
+	});
+	
+	throw lastError;
+  }
+
+  /**
+   * Runs Phase 1 security tests and displays results
+   */
+  /**
+   * Registers all services with the dependency injection container
+   */
+  private async registerServices(): Promise<void> {
+    // Register utilities first
+    this.container.register('logger', () => new Logger({
+      level: 'info',
+      enableConsole: true,
+      enableStorage: false
+    }), 'singleton');
+
+    this.container.register('secureTokenManager', () => new SecureTokenManager(this.app), 'singleton');
+    
+    this.container.register('errorHandler', async () => {
+      const logger = await this.container.get<Logger>('logger');
+      return new IntelligentErrorHandler(logger);
+    }, 'singleton');
+
+    // Register core services
+    this.container.register('syncPlanner', async () => {
+      const logger = await this.container.get<Logger>('logger');
+      const mobileOptimizer = await this.container.get<MobileOptimizerService>('mobileOptimizer');
+      return new SyncPlannerService(logger, mobileOptimizer);
+    }, 'singleton');
+
+    this.container.register('conflictResolver', async () => {
+      const logger = await this.container.get<Logger>('logger');
+      return new ConflictResolutionService(logger);
+    }, 'singleton');
+
+    // Register mobile optimization services
+    this.container.register('mobileOptimizer', async () => {
+      const logger = await this.container.get<Logger>('logger');
+      return new MobileOptimizerService(logger, {
+        batteryAwareSync: true,
+        lowBatteryThreshold: 0.2,
+        cellularDataWarning: true,
+        maxCellularFileSize: 10 * 1024 * 1024, // 10MB
+        adaptiveQuality: true,
+        hapticFeedback: true,
+        preloadContent: false,
+        backgroundSync: true
+      });
+    }, 'singleton');
+
+    // Register performance and memory services
+    this.container.register('performanceMonitor', async () => {
+      const logger = await this.container.get<Logger>('logger');
+      return new PerformanceMonitor(logger);
+    }, 'singleton');
+
+    this.container.register('memoryManager', async () => {
+      const logger = await this.container.get<Logger>('logger');
+      return new MemoryManager(logger);
+    }, 'singleton');
+
+    // Register UI services
+    this.container.register('statusBarManager', async () => {
+      return new StatusBarManager(this, {
+        showProgress: true,
+        showLastSync: true,
+        showPendingChanges: true,
+        animateChanges: true
+      });
+    }, 'singleton');
+
+    // Validate service dependencies
+    const validation = this.container.validateDependencies();
+    if (!validation.isValid) {
+      console.error('Service dependency validation failed:', validation.errors);
+      throw new Error('Failed to register services: ' + validation.errors.join(', '));
+    }
   }
 
   validateSettings(): { isValid: boolean; errors: string[] } {
-	const errors: string[] = [];
+	// Use the new comprehensive validator (synchronous version)
+	const validation = InputValidator.validateSettings(this.settings);
 	
-	if (!this.settings.repoUrl) {
-	  errors.push('Repository URL is required');
-	} else if (!this.settings.repoUrl.match(/github\.com[/:]([^/]+)\/([^/.]+)/)) {
-	  errors.push('Invalid GitHub repository URL format');
-	}
+	// For now, return basic validation. The async version will handle secure token checks.
+	return validation;
+  }
+
+  /**
+   * Enhanced async validation that checks secure token storage
+   */
+  async validateSettingsAsync(): Promise<{ isValid: boolean; errors: string[]; warnings?: string[] }> {
+	// Use the new comprehensive validator
+	const validation = InputValidator.validateSettings(this.settings);
 	
-	if (!this.settings.githubToken) {
-	  errors.push('GitHub token is required');
-	} else if (!this.settings.githubToken.startsWith('ghp_') && !this.settings.githubToken.startsWith('github_pat_')) {
-	  errors.push('Invalid GitHub token format');
-	}
-	
-	if (!this.settings.branch) {
-	  errors.push('Branch name is required');
-	}
-	
-	if (this.settings.autoSyncInterval < 1) {
-	  errors.push('Auto sync interval must be at least 1 minute');
+	// Check for secure token if plain-text token validation fails
+	if (!validation.isValid && validation.errors.some(e => e.includes('GitHub token'))) {
+	  try {
+		const hasSecureToken = await this.secureTokenManager.hasToken();
+		if (hasSecureToken) {
+		  // Filter out token-related errors since we have a secure token
+		  const nonTokenErrors = validation.errors.filter(e => !e.includes('token'));
+		  return { 
+			isValid: nonTokenErrors.length === 0, 
+			errors: nonTokenErrors,
+			warnings: [...(validation.warnings || []), 'Using securely stored token']
+		  };
+		}
+	  } catch (error) {
+		// If secure token check fails, add to errors
+		validation.errors.push('Failed to verify secure token storage');
+	  }
 	}
 	
 	return {
-	  isValid: errors.length === 0,
-	  errors
+	  isValid: validation.isValid,
+	  errors: validation.errors,
+	  warnings: validation.warnings
 	};
   }
 
@@ -1840,6 +2211,11 @@ class EnhancedChangesModal extends Modal {
 
 // (Move all plugin methods and properties that are after this point back inside the MobileGitSyncPlugin class)
 // ...existing code...
+
+/**
+ * Modal for displaying security test results
+ */
+
 // --- Settings Tab ---
 class MobileGitSyncSettingTab extends PluginSettingTab {
   plugin: MobileGitSyncPlugin;
