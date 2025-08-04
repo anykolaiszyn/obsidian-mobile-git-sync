@@ -1166,7 +1166,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  
 	  throw new Error('GitHub token not configured');
 	} catch (error) {
-	  await this.handleSecurityError(error, {
+	  await this.handleSecurityError(error instanceof Error ? error : new Error(String(error)), {
 		operation: 'getSecureToken',
 		timestamp: Date.now()
 	  });
@@ -1197,7 +1197,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  
 	  new Notice('Token stored securely and validated', 3000);
 	} catch (error) {
-	  await this.handleSecurityError(error, {
+	  await this.handleSecurityError(error instanceof Error ? error : new Error(String(error)), {
 		operation: 'setSecureToken',
 		timestamp: Date.now()
 	  });
@@ -1317,7 +1317,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	// Network-related recovery
 	if (message.includes('network') || message.includes('fetch')) {
 	  if (!navigator.onLine) {
-		this.showWarning('Device offline', 'Changes will sync when connection is restored');
+		this.showWarning('Device offline - Changes will sync when connection is restored');
 		return false;
 	  }
 	  
@@ -1331,7 +1331,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	
 	// Rate limit recovery
 	if (message.includes('rate limit') || message.includes('403')) {
-	  this.showWarning('Rate limit reached', 'Sync will resume automatically after cooldown');
+	  this.showWarning('Rate limit reached - Sync will resume automatically after cooldown');
 	  // Schedule retry for later
 	  setTimeout(() => {
 		this.showWarning('Rate limit cooldown complete, resuming sync');
@@ -1350,7 +1350,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	fn: () => Promise<T>,
 	maxRetries: number = 3
   ): Promise<T> {
-	let lastError: Error;
+	let lastError: Error = new Error('Unknown error');
 	
 	for (let attempt = 0; attempt < maxRetries; attempt++) {
 	  try {
@@ -1399,8 +1399,7 @@ export default class MobileGitSyncPlugin extends Plugin {
     this.container.register('secureTokenManager', () => new SecureTokenManager(this.app), 'singleton');
     
     this.container.register('errorHandler', async () => {
-      const logger = await this.container.get<Logger>('logger');
-      return new IntelligentErrorHandler(logger);
+      return new IntelligentErrorHandler(this.app);
     }, 'singleton');
 
     // Register core services
@@ -1411,8 +1410,7 @@ export default class MobileGitSyncPlugin extends Plugin {
     }, 'singleton');
 
     this.container.register('conflictResolver', async () => {
-      const logger = await this.container.get<Logger>('logger');
-      return new ConflictResolutionService(logger);
+      return new ConflictResolutionService(this.app);
     }, 'singleton');
 
     // Register mobile optimization services

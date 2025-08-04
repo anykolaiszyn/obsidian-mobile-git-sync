@@ -103,7 +103,7 @@ export class MemoryManager extends DisposableService {
   /**
    * Caches data with intelligent eviction
    */
-  cache(
+  cacheData(
     key: string,
     data: any,
     options: {

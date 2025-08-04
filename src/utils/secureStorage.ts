@@ -68,7 +68,7 @@ export class SecureTokenManager {
       new Notice('GitHub token stored securely', 2000);
     } catch (error) {
       console.error('Failed to store secure token:', error);
-      throw new Error(`Failed to store token securely: ${error.message}`);
+      throw new Error(`Failed to store token securely: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -107,7 +107,7 @@ export class SecureTokenManager {
       return decryptedToken;
     } catch (error) {
       console.error('Failed to retrieve secure token:', error);
-      throw new Error(`Failed to retrieve token: ${error.message}`);
+      throw new Error(`Failed to retrieve token: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -177,7 +177,7 @@ export class SecureTokenManager {
     } catch (error) {
       return {
         isValid: false,
-        error: `Validation failed: ${error.message}`
+        error: `Validation failed: ${error instanceof Error ? error.message : String(error)}`
       };
     }
   }
@@ -200,7 +200,7 @@ export class SecureTokenManager {
       new Notice('Stored token cleared', 2000);
     } catch (error) {
       console.error('Failed to clear token:', error);
-      throw new Error(`Failed to clear token: ${error.message}`);
+      throw new Error(`Failed to clear token: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -292,7 +292,7 @@ export class SecureTokenManager {
       new Notice('Token successfully migrated to secure storage', 3000);
     } catch (error) {
       console.error('Failed to migrate token:', error);
-      throw new Error(`Token migration failed: ${error.message}`);
+      throw new Error(`Token migration failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

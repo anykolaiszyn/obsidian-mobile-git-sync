@@ -413,7 +413,7 @@ export class GestureHandlerService extends DisposableService {
     const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
     const velocity = distance / duration;
 
-    if (distance >= config.swipeThreshold && velocity >= config.swipeVelocityThreshold) {
+    if (distance >= (config?.swipeThreshold || 50) && velocity >= (config?.swipeVelocityThreshold || 0.1)) {
       let direction: GestureEvent['direction'];
       
       if (Math.abs(deltaX) > Math.abs(deltaY)) {
@@ -458,7 +458,7 @@ export class GestureHandlerService extends DisposableService {
     const scale = currentDistance / parseFloat(initialDistance);
     const config = binding.config || this.defaultConfig;
 
-    if (Math.abs(scale - 1) >= config.pinchThreshold) {
+    if (Math.abs(scale - 1) >= (config?.pinchThreshold || 0.1)) {
       this.triggerGesture(element, {
         type: 'pinch',
         scale,
@@ -479,7 +479,7 @@ export class GestureHandlerService extends DisposableService {
     const currentTime = Date.now();
     const config = binding.config || this.defaultConfig;
 
-    if (currentTime - this.lastClickTime <= config.doubleClickDelay) {
+    if (currentTime - this.lastClickTime <= (config?.doubleClickDelay || 300)) {
       this.triggerGesture(element, {
         type: 'doubleclick',
         element,

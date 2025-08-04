@@ -246,16 +246,16 @@ export class AdvancedConflictModal extends Modal {
       const indicator = lineEl.createEl('span', { cls: 'line-indicator' });
       switch (diffLine.type) {
         case 'added':
-          indicator.text = '+';
+          indicator.textContent = '+';
           break;
         case 'removed':
-          indicator.text = '-';
+          indicator.textContent = '-';
           break;
         case 'modified':
-          indicator.text = '~';
+          indicator.textContent = '~';
           break;
         default:
-          indicator.text = ' ';
+          indicator.textContent = ' ';
       }
 
       // Line content

@@ -362,7 +362,7 @@ export class SyncPlannerService extends DisposableService {
         file: remoteFile,
         priority: this.calculatePriority(remoteFile, 'download', context),
         estimatedTime: this.estimateOperationTime(remoteFile, 'download', context),
-        estimatedSize: remoteFile.size,
+        estimatedSize: remoteFile.size || 0,
         dependencies: [],
         risks: this.assessOperationRisks(remoteFile, 'download', context)
       };
@@ -376,7 +376,7 @@ export class SyncPlannerService extends DisposableService {
         file: localFile,
         priority: this.calculatePriority(localFile, 'upload', context),
         estimatedTime: this.estimateOperationTime(localFile, 'upload', context),
-        estimatedSize: localFile.size,
+        estimatedSize: localFile.size || 0,
         dependencies: [],
         risks: this.assessOperationRisks(localFile, 'upload', context)
       };
@@ -390,7 +390,7 @@ export class SyncPlannerService extends DisposableService {
           id: operationId,
           ...operation,
           estimatedTime: this.estimateOperationTime(operation.file, operation.type, context),
-          estimatedSize: operation.file.size,
+          estimatedSize: operation.file.size || 0,
           dependencies: [],
           risks: this.assessOperationRisks(operation.file, operation.type, context)
         };
@@ -409,7 +409,7 @@ export class SyncPlannerService extends DisposableService {
     context: SyncContext
   ): Pick<SyncOperation, 'type' | 'file' | 'priority'> {
     // Simple resolution based on modification time
-    const localNewer = localFile.mtime > remoteFile.mtime;
+    const localNewer = (localFile.mtime || 0) > (remoteFile.mtime || 0);
     
     if (context.userPreferences.autoResolveConflicts) {
       return {
@@ -469,7 +469,7 @@ export class SyncPlannerService extends DisposableService {
     }
     
     // File size (larger files have higher conflict probability)
-    if (operation.file.size > 10 * 1024 * 1024) { // 10MB
+    if ((operation.file.size || 0) > 10 * 1024 * 1024) { // 10MB
       probability += 0.2;
     }
     
@@ -491,7 +491,7 @@ export class SyncPlannerService extends DisposableService {
       reasons.push('File recently modified');
     }
     
-    if (operation.file.size > 50 * 1024 * 1024) { // 50MB
+    if ((operation.file.size || 0) > 50 * 1024 * 1024) { // 50MB
       reasons.push('Large file size increases sync complexity');
     }
     
@@ -515,7 +515,7 @@ export class SyncPlannerService extends DisposableService {
     context: SyncContext
   ): 'local' | 'remote' | 'merge' | 'manual' {
     if (context.userPreferences.autoResolveConflicts) {
-      return operation.file.mtime > Date.now() - 24 * 60 * 60 * 1000 ? 'local' : 'remote';
+      return (operation.file.mtime || 0) > Date.now() - 24 * 60 * 60 * 1000 ? 'local' : 'remote';
     }
     
     if (operation.file.path.endsWith('.md') || operation.file.path.endsWith('.txt')) {
@@ -804,7 +804,7 @@ export class SyncPlannerService extends DisposableService {
     context: SyncContext
   ): number {
     const baseTime = 1000; // 1 second base
-    const sizeMultiplier = file.size / (1024 * 1024); // Per MB
+    const sizeMultiplier = (file.size || 0) / (1024 * 1024); // Per MB
     
     let networkMultiplier = 1;
     if (context.networkType === 'cellular') networkMultiplier = 2;
@@ -819,7 +819,7 @@ export class SyncPlannerService extends DisposableService {
   ): OperationRisk[] {
     const risks: OperationRisk[] = [];
     
-    if (file.size > 100 * 1024 * 1024) { // 100MB
+    if ((file.size || 0) > 100 * 1024 * 1024) { // 100MB
       risks.push({
         type: 'timeout',
         probability: 0.3,

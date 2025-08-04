@@ -89,6 +89,14 @@ export interface LogEntry {
 	level: LogLevel;
 	message: string;
 	data?: unknown;
+	context?: LogContext;
+}
+
+export interface LogContext {
+	component?: string;
+	operation?: string;
+	userId?: string;
+	sessionId?: string;
 }
 
 export interface RetryConfig {
@@ -113,6 +121,8 @@ export interface SyncFile {
 	reason: 'local-only' | 'remote-only' | 'conflict' | 'newer-local' | 'newer-remote' | 'local-delete';
 	size?: number;
 	lastModified?: number;
+	hash?: string;
+	mtime?: number;
 }
 
 export interface VaultScanResult {

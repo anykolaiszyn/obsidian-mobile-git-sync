@@ -434,8 +434,9 @@ export class PerformanceMonitor extends DisposableService {
               );
             } else if (entry.entryType === 'navigation') {
               const navEntry = entry as PerformanceNavigationTiming;
-              this.recordMetric('pageLoadTime', navEntry.loadEventEnd - navEntry.navigationStart, 'ms', 'user');
-              this.recordMetric('domContentLoaded', navEntry.domContentLoadedEventEnd - navEntry.navigationStart, 'ms', 'user');
+              const navigationStart = (navEntry as any).navigationStart || navEntry.startTime;
+              this.recordMetric('pageLoadTime', navEntry.loadEventEnd - navigationStart, 'ms', 'user');
+              this.recordMetric('domContentLoaded', navEntry.domContentLoadedEventEnd - navigationStart, 'ms', 'user');
             }
           }
         });

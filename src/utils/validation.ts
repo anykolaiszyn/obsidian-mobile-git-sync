@@ -406,7 +406,7 @@ export class InputValidator {
 
         sanitizedValue.push(trimmedPattern);
       } catch (error) {
-        errors.push(`Invalid pattern "${trimmedPattern}": ${error.message}`);
+        errors.push(`Invalid pattern "${trimmedPattern}": ${error instanceof Error ? error.message : String(error)}`);
       }
     });
 

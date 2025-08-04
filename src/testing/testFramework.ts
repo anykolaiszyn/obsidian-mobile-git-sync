@@ -322,7 +322,7 @@ export class TestFramework {
   /**
    * Creates a mock function
    */
-  mock(target: any, methodName: string, options: MockOptions = {}): jest.MockedFunction<any> {
+  mock(target: any, methodName: string, options: MockOptions = {}): any {
     const originalMethod = target[methodName];
     const mockKey = `${target.constructor.name}.${methodName}`;
 

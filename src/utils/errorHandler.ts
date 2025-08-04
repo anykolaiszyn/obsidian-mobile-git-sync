@@ -438,7 +438,7 @@ class ErrorRecoveryModal extends Modal {
     private analysis: ErrorAnalysis,
     private error: Error,
     private context: ErrorContext,
-    private onClose: () => void
+    private onCloseCallback: () => void
   ) {
     super(app);
   }
@@ -492,7 +492,7 @@ class ErrorRecoveryModal extends Modal {
               }
               this.close();
             } catch (actionError) {
-              new Notice(`Recovery action failed: ${actionError.message}`, 3000);
+              new Notice(`Recovery action failed: ${actionError instanceof Error ? actionError.message : String(actionError)}`, 3000);
             }
           };
         });
@@ -520,6 +520,6 @@ class ErrorRecoveryModal extends Modal {
   }
 
   onClose() {
-    this.onClose();
+    this.onCloseCallback();
   }
 }

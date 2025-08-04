@@ -431,7 +431,7 @@ export class GitHubApiService extends DisposableService {
       ...options.headers
     };
 
-    let lastError: Error;
+    let lastError: Error = new Error('Unknown error');
     const maxRetries = this.options.retries || 3;
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
@@ -439,8 +439,8 @@ export class GitHubApiService extends DisposableService {
         const response = await requestUrl({
           url,
           method: options.method || 'GET',
-          headers,
-          body: options.body,
+          headers: headers as Record<string, string>,
+          body: typeof options.body === 'string' ? options.body : undefined,
           throw: false
         });
 

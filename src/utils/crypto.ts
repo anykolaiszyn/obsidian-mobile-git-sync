@@ -48,7 +48,7 @@ export class CryptoManager {
         salt: this.arrayBufferToBase64(salt)
       };
     } catch (error) {
-      throw new Error(`Encryption failed: ${error.message}`);
+      throw new Error(`Encryption failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -63,7 +63,7 @@ export class CryptoManager {
       const salt = this.base64ToArrayBuffer(encryptedData.salt);
       
       // Derive the same key used for encryption
-      const key = await this.deriveKey(deviceFingerprint || 'default', salt);
+      const key = await this.deriveKey(deviceFingerprint || 'default', new Uint8Array(salt));
       
       // Decrypt the data
       const decrypted = await crypto.subtle.decrypt(
@@ -78,7 +78,7 @@ export class CryptoManager {
       const decoder = new TextDecoder();
       return decoder.decode(decrypted);
     } catch (error) {
-      throw new Error(`Decryption failed: ${error.message}`);
+      throw new Error(`Decryption failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

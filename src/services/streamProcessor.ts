@@ -364,7 +364,7 @@ export class StreamProcessor extends DisposableService {
     
     // Use native compression if available
     if ('CompressionStream' in window) {
-      const stream = new CompressionStream(algorithm);
+      const stream = new (window as any).CompressionStream(algorithm);
       const writer = stream.writable.getWriter();
       const reader = stream.readable.getReader();
       
@@ -413,7 +413,7 @@ export class StreamProcessor extends DisposableService {
     algorithm: 'gzip' | 'deflate' = 'gzip'
   ): Promise<Uint8Array> {
     if ('DecompressionStream' in window) {
-      const stream = new DecompressionStream(algorithm);
+      const stream = new (window as any).DecompressionStream(algorithm);
       const writer = stream.writable.getWriter();
       const reader = stream.readable.getReader();
       

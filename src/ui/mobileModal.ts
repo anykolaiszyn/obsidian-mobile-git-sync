@@ -83,7 +83,7 @@ export class MobileModal extends Modal {
   /**
    * Sets the modal content using sections
    */
-  setContent(sections: MobileModalSection[]): void {
+  setSections(sections: MobileModalSection[]): void {
     this.sections = sections;
   }
 
