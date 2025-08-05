@@ -2340,6 +2340,22 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 	// Initial validation display
 	updateValidation();
 
+	// Add Buy Me a Coffee section at the top
+	const supportSection = containerEl.createEl('div', { cls: 'setting-support-section' });
+	supportSection.createEl('h3', { text: '☕ Support Development' });
+	supportSection.createEl('p', { 
+	  text: 'If this plugin helps you stay productive, consider buying me a coffee!',
+	  cls: 'setting-support-desc'
+	});
+	
+	const coffeeBtn = supportSection.createEl('a', {
+	  text: '☕ Buy Me a Coffee',
+	  cls: 'setting-coffee-button',
+	  href: 'https://buymeacoffee.com/alexnyk'
+	});
+	coffeeBtn.setAttribute('target', '_blank');
+	coffeeBtn.setAttribute('rel', 'noopener noreferrer');
+
 	new Setting(containerEl)
 	  .setName('GitHub Repository URL')
 	  .setDesc('Format: https://github.com/owner/repo')

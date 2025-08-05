@@ -1,11 +1,11 @@
 {
 	"id": "mobile-git-sync",
 	"name": "Mobile Git Sync",
-	"version": "1.0.0",
+	"version": "1.1.0",
 	"minAppVersion": "0.15.0",
 	"description": "Revolutionary mobile-first GitHub sync plugin. Comprehensive bidirectional sync that never misses files, works perfectly on Android/iOS, with smart conflict resolution and visual progress tracking.",
 	"author": "anykolaiszyn",
 	"authorUrl": "https://github.com/anykolaiszyn",
-	"fundingUrl": "https://github.com/sponsors/anykolaiszyn",
+	"fundingUrl": "https://buymeacoffee.com/alexnyk",
 	"isDesktopOnly": false
 }
