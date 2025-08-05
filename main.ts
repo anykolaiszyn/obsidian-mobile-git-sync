@@ -516,17 +516,50 @@ export default class MobileGitSyncPlugin extends Plugin {
 	new EnhancedChangesModal(this.app, this.changeQueue, this).open();
   }
 
+  async scanForChanges(): Promise<void> {
+	try {
+	  const localFiles = await this.getAllLocalFiles();
+	  const existingPaths = new Set(localFiles.map(f => f.path));
+	  
+	  // Check for files that might have been deleted outside of Obsidian
+	  for (const [filePath, change] of this.changeQueue) {
+		if (change.type !== 'delete' && !existingPaths.has(filePath)) {
+		  // File was deleted outside of Obsidian, update the change type
+		  this.changeQueue.set(filePath, {
+			...change,
+			type: 'delete',
+			timestamp: Date.now()
+		  });
+		}
+	  }
+	  
+	  // Check for modified files that aren't in the queue
+	  for (const file of localFiles) {
+		if (!this.changeQueue.has(file.path)) {
+		  // This is a simple scan, just add as 'modify' since we don't track creation time
+		  await this.queueFileChange(file.path, 'modify');
+		}
+	  }
+	} catch (error) {
+	  this.log(`Scan for changes failed: ${(error as Error).message}`, 'warn');
+	}
+  }
+
   async pushOnly(): Promise<void> {
+	// First, scan for any changes that might not be in the queue yet
+	// (e.g., files deleted outside of Obsidian)
+	await this.scanForChanges();
+	
 	if (this.changeQueue.size === 0) {
 	  new Notice('No changes to push');
 	  return;
 	}
 	this.updateStatusBar('Pushing changes...');
 	try {
-	  await this.pushLocalChanges();
+	  const result = await this.pushLocalChanges();
 	  this.changeQueue.clear();
 	  this.lastSyncTime = Date.now();
-	  new Notice(`Pushed ${this.changeQueue.size} changes successfully`);
+	  new Notice(`Push complete: ${result.successCount} files synced`);
 	  this.updateStatusBar('Push complete');
 	} catch (error) {
 	  new Notice(`Push failed: ${(error as Error).message}`);
@@ -593,7 +626,8 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  if (pushAfter) {
 		await this.performSync();
 	  } else {
-		await this.pushLocalChanges();
+		const result = await this.pushLocalChanges();
+		this.log(`Push complete: ${result.successCount} succeeded, ${result.failureCount} failed`, 'info');
 	  }
 	  
 	  this.lastSyncTime = Date.now();
@@ -612,9 +646,18 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  // Create backup folder
 	  await this.app.vault.createFolder(backupFolder).catch(() => {});
 	  
-	  // Copy changed files to backup
-	  for (const [filePath] of this.changeQueue) {
+	  let backedUpCount = 0;
+	  let deletedCount = 0;
+	  
+	  // Copy changed files to backup (only files that still exist)
+	  for (const [filePath, change] of this.changeQueue) {
 		try {
+		  if (change.type === 'delete') {
+			// For deletions, create a manifest file to record what was deleted
+			deletedCount++;
+			continue;
+		  }
+		  
 		  const file = this.app.vault.getAbstractFileByPath(filePath);
 		  if (file instanceof TFile) {
 			const content = await this.app.vault.read(file);
@@ -627,14 +670,29 @@ export default class MobileGitSyncPlugin extends Plugin {
 			}
 			
 			await this.app.vault.create(backupPath, content);
+			backedUpCount++;
 		  }
 		} catch (error) {
 		  this.log(`Failed to backup ${filePath}: ${(error as Error).message}`, 'warn');
 		}
 	  }
 	  
-	  this.log(`Backup created: ${backupFolder}`, 'success');
-	  new Notice(`Backup created in ${backupFolder}`);
+	  // Create a manifest file listing all changes
+	  const manifest = {
+		timestamp,
+		backedUpFiles: backedUpCount,
+		deletedFiles: deletedCount,
+		changes: Array.from(this.changeQueue.entries()).map(([path, change]) => ({
+		  path,
+		  type: change.type,
+		  timestamp: change.timestamp
+		}))
+	  };
+	  
+	  await this.app.vault.create(`${backupFolder}/backup-manifest.json`, JSON.stringify(manifest, null, 2));
+	  
+	  this.log(`Backup created: ${backupFolder} (${backedUpCount} files, ${deletedCount} deletions)`, 'success');
+	  new Notice(`Backup created: ${backedUpCount} files backed up, ${deletedCount} deletions recorded`);
 	} catch (error) {
 	  this.log(`Backup failed: ${(error as Error).message}`, 'error');
 	  throw error;
@@ -1923,7 +1981,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  }
 	  
 	  this.log(`Starting sync of ${changeCount} changes`, 'info');
-	  await this.pushLocalChanges();
+	  const result = await this.pushLocalChanges();
 	  
 	  // Clear successfully synced changes
 	  this.changeQueue.clear();
@@ -1946,7 +2004,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	}
   }
 
-  private async pushLocalChanges(): Promise<void> {
+  private async pushLocalChanges(): Promise<{successCount: number, failureCount: number}> {
 	const changes = Array.from(this.changeQueue.values());
 	let successCount = 0;
 	let failureCount = 0;
@@ -1982,6 +2040,8 @@ export default class MobileGitSyncPlugin extends Plugin {
 	if (failureCount > 0) {
 	  throw new Error(`${failureCount} files failed to upload`);
 	}
+	
+	return { successCount, failureCount };
   }
 
   async calculateSha(content: string): Promise<string> {
