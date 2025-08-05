@@ -941,3 +941,41 @@
 .theme-dark .setting-coffee-button:hover {
   background: #e5e5e5;
 }
+
+/* Backup Options Modal */
+.git-sync-backup-options {
+  margin: 16px 0;
+}
+
+.git-sync-option {
+  margin: 12px 0;
+  padding: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.git-sync-option:hover {
+  background: var(--background-modifier-hover);
+  border-color: var(--color-accent);
+}
+
+.git-sync-option input[type="radio"] {
+  margin-right: 8px;
+}
+
+.git-sync-option label {
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.git-sync-option-desc {
+  display: block;
+  margin-top: 4px;
+  margin-left: 24px;
+  color: var(--text-muted);
+  font-size: 0.85em;
+}

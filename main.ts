@@ -267,6 +267,13 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'k' }]
 	});
 
+	this.addCommand({
+	  id: 'mobile-git-sync-create-backup',
+	  name: '💾 Create Backup',
+	  callback: () => this.showBackupOptions(),
+	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'b' }]
+	});
+
 	// Register the settings tab so the configuration UI appears
 	this.addSettingTab(new MobileGitSyncSettingTab(this.app, this));
 	
@@ -638,7 +645,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	}
   }
 
-  async createBackup(): Promise<void> {
+  async createBackup(mode: 'changes' | 'all' = 'changes'): Promise<void> {
 	try {
 	  const timestamp = moment().format('YYYY-MM-DD-HH-mm-ss');
 	  const backupFolder = `backups/backup-${timestamp}`;
@@ -648,20 +655,39 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  
 	  let backedUpCount = 0;
 	  let deletedCount = 0;
+	  let filesToBackup: { path: string; type: 'create' | 'modify' | 'delete' }[] = [];
 	  
-	  // Copy changed files to backup (only files that still exist)
-	  for (const [filePath, change] of this.changeQueue) {
+	  if (mode === 'all') {
+		// Backup all vault files
+		const allFiles = await this.getAllLocalFiles();
+		filesToBackup = allFiles
+		  .filter(file => !this.isExcluded(file.path))
+		  .map(file => ({ path: file.path, type: 'modify' as const }));
+		  
+		this.log(`Creating full vault backup of ${filesToBackup.length} files`, 'info');
+	  } else {
+		// Backup only changed files
+		filesToBackup = Array.from(this.changeQueue.entries()).map(([path, change]) => ({
+		  path,
+		  type: change.type
+		}));
+		
+		this.log(`Creating changes backup of ${filesToBackup.length} files`, 'info');
+	  }
+	  
+	  // Copy files to backup
+	  for (const item of filesToBackup) {
 		try {
-		  if (change.type === 'delete') {
-			// For deletions, create a manifest file to record what was deleted
+		  if (item.type === 'delete') {
+			// For deletions, just record in manifest
 			deletedCount++;
 			continue;
 		  }
 		  
-		  const file = this.app.vault.getAbstractFileByPath(filePath);
+		  const file = this.app.vault.getAbstractFileByPath(item.path);
 		  if (file instanceof TFile) {
 			const content = await this.app.vault.read(file);
-			const backupPath = `${backupFolder}/${filePath}`;
+			const backupPath = `${backupFolder}/${item.path}`;
 			
 			// Create parent directories if needed
 			const parentPath = backupPath.substring(0, backupPath.lastIndexOf('/'));
@@ -673,26 +699,29 @@ export default class MobileGitSyncPlugin extends Plugin {
 			backedUpCount++;
 		  }
 		} catch (error) {
-		  this.log(`Failed to backup ${filePath}: ${(error as Error).message}`, 'warn');
+		  this.log(`Failed to backup ${item.path}: ${(error as Error).message}`, 'warn');
 		}
 	  }
 	  
-	  // Create a manifest file listing all changes
+	  // Create a manifest file
 	  const manifest = {
 		timestamp,
+		mode,
 		backedUpFiles: backedUpCount,
 		deletedFiles: deletedCount,
-		changes: Array.from(this.changeQueue.entries()).map(([path, change]) => ({
-		  path,
-		  type: change.type,
-		  timestamp: change.timestamp
+		totalFiles: filesToBackup.length,
+		files: filesToBackup.map(item => ({
+		  path: item.path,
+		  type: item.type,
+		  timestamp: mode === 'changes' ? this.changeQueue.get(item.path)?.timestamp : Date.now()
 		}))
 	  };
 	  
 	  await this.app.vault.create(`${backupFolder}/backup-manifest.json`, JSON.stringify(manifest, null, 2));
 	  
-	  this.log(`Backup created: ${backupFolder} (${backedUpCount} files, ${deletedCount} deletions)`, 'success');
-	  new Notice(`Backup created: ${backedUpCount} files backed up, ${deletedCount} deletions recorded`);
+	  const backupType = mode === 'all' ? 'Full vault backup' : 'Changes backup';
+	  this.log(`${backupType} created: ${backupFolder} (${backedUpCount} files, ${deletedCount} deletions)`, 'success');
+	  new Notice(`${backupType} created: ${backedUpCount} files backed up, ${deletedCount} deletions recorded`);
 	} catch (error) {
 	  this.log(`Backup failed: ${(error as Error).message}`, 'error');
 	  throw error;
@@ -1183,6 +1212,10 @@ export default class MobileGitSyncPlugin extends Plugin {
 	}
 	
 	new BulkOperationsModal(this.app, this).open();
+  }
+
+  async showBackupOptions(): Promise<void> {
+	new BackupOptionsModal(this.app, this).open();
   }
 
   async onunload() {
@@ -2307,8 +2340,9 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 	validationDisplay = containerEl.createEl('div', { cls: 'setting-validation-status' });
 	
 	// Function to update validation display and toggle state
-	const updateValidation = () => {
-	  const validation = this.plugin.validateSettings();
+	const updateValidation = async () => {
+	  // Use async validation to check secure tokens
+	  const validation = await this.plugin.validateSettingsAsync();
 	  
 	  // Clear and update validation display
 	  validationDisplay.empty();
@@ -2339,22 +2373,6 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 	
 	// Initial validation display
 	updateValidation();
-
-	// Add Buy Me a Coffee section at the top
-	const supportSection = containerEl.createEl('div', { cls: 'setting-support-section' });
-	supportSection.createEl('h3', { text: '☕ Support Development' });
-	supportSection.createEl('p', { 
-	  text: 'If this plugin helps you stay productive, consider buying me a coffee!',
-	  cls: 'setting-support-desc'
-	});
-	
-	const coffeeBtn = supportSection.createEl('a', {
-	  text: '☕ Buy Me a Coffee',
-	  cls: 'setting-coffee-button',
-	  href: 'https://buymeacoffee.com/alexnyk'
-	});
-	coffeeBtn.setAttribute('target', '_blank');
-	coffeeBtn.setAttribute('rel', 'noopener noreferrer');
 
 	new Setting(containerEl)
 	  .setName('GitHub Repository URL')
@@ -2487,6 +2505,22 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		  updateValidation(); // Update validation after change
 		})
 	  );
+
+	// Add Buy Me a Coffee section at the bottom
+	const supportSection = containerEl.createEl('div', { cls: 'setting-support-section' });
+	supportSection.createEl('h3', { text: '☕ Support Development' });
+	supportSection.createEl('p', { 
+	  text: 'If this plugin helps you stay productive, consider buying me a coffee!',
+	  cls: 'setting-support-desc'
+	});
+	
+	const coffeeBtn = supportSection.createEl('a', {
+	  text: '☕ Buy Me a Coffee',
+	  cls: 'setting-coffee-button',
+	  href: 'https://buymeacoffee.com/alexnyk'
+	});
+	coffeeBtn.setAttribute('target', '_blank');
+	coffeeBtn.setAttribute('rel', 'noopener noreferrer');
   }
 
 
@@ -3069,6 +3103,87 @@ class ConflictResolutionModal extends Modal {
   }
 }
 
+// Backup Options Modal
+class BackupOptionsModal extends Modal {
+  plugin: MobileGitSyncPlugin;
+  
+  constructor(app: App, plugin: MobileGitSyncPlugin) {
+	super(app);
+	this.plugin = plugin;
+  }
+  
+  onOpen() {
+	const { contentEl } = this;
+	contentEl.addClass('git-sync-modal');
+	
+	contentEl.createEl('h2', { text: '💾 Backup Options' });
+	
+	// Backup mode selection
+	const modeContainer = contentEl.createEl('div', { cls: 'git-sync-backup-options' });
+	modeContainer.createEl('p', { text: 'What would you like to backup before sync?' });
+	
+	// Queue option
+	const queueOption = modeContainer.createEl('div', { cls: 'git-sync-option' });
+	const queueRadio = queueOption.createEl('input', { type: 'radio' }) as HTMLInputElement;
+	queueRadio.name = 'backup-mode';
+	queueRadio.value = 'changes';
+	queueRadio.checked = true;
+	const queueLabel = queueOption.createEl('label');
+	queueLabel.appendChild(queueRadio);
+	queueLabel.appendChild(document.createTextNode(' Pending Changes Only'));
+	const queueDesc = queueOption.createEl('small', { 
+	  text: `Backup ${this.plugin.changeQueue.size} files in the change queue`,
+	  cls: 'git-sync-option-desc'
+	});
+	
+	// All files option  
+	const allOption = modeContainer.createEl('div', { cls: 'git-sync-option' });
+	const allRadio = allOption.createEl('input', { type: 'radio' }) as HTMLInputElement;
+	allRadio.name = 'backup-mode';
+	allRadio.value = 'all';
+	const allLabel = allOption.createEl('label');
+	allLabel.appendChild(allRadio);
+	allLabel.appendChild(document.createTextNode(' Entire Vault'));
+	const allDesc = allOption.createEl('small', {
+	  text: 'Backup all files in your vault (may take longer)',
+	  cls: 'git-sync-option-desc'
+	});
+	
+	// Actions
+	const actions = contentEl.createEl('div', { cls: 'git-sync-actions' });
+	const createBtn = actions.createEl('button', {
+	  text: '💾 Create Backup & Sync',
+	  cls: 'mod-cta'
+	});
+	const skipBtn = actions.createEl('button', { text: 'Skip Backup & Sync' });
+	const cancelBtn = actions.createEl('button', { text: 'Cancel' });
+	
+	createBtn.onclick = async () => {
+	  const selectedMode = queueRadio.checked ? 'changes' : 'all';
+	  this.close();
+	  
+	  try {
+		await this.plugin.createBackup(selectedMode as 'changes' | 'all');
+		await this.plugin.fullSync();
+	  } catch (error) {
+		new Notice(`Backup or sync failed: ${(error as Error).message}`);
+	  }
+	};
+	
+	skipBtn.onclick = async () => {
+	  this.close();
+	  await this.plugin.fullSync();
+	};
+	
+	cancelBtn.onclick = () => this.close();
+  }
+  
+  onClose() {
+	const { contentEl } = this;
+	contentEl.empty();
+  }
+}
+
 // Smart Sync Modal for Conflict Resolution
 class SmartSyncModal extends Modal {
   plugin: MobileGitSyncPlugin;
@@ -3133,10 +3248,11 @@ class SmartSyncModal extends Modal {
 	  this.close();
 	  
 	  if (backupCheckbox.checked) {
-		await this.plugin.createBackup();
+		// Show backup options modal
+		new BackupOptionsModal(this.app, this.plugin).open();
+	  } else {
+		await this.plugin.fullSync();
 	  }
-	  
-	  await this.plugin.fullSync();
 	};
 	
 	cancelBtn.onclick = () => this.close();
