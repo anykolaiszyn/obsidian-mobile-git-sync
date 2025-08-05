@@ -847,3 +847,44 @@
     font-size: 0.8em;
   }
 }
+
+/* Settings Validation Styles */
+.setting-validation-status {
+  margin-bottom: 20px;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.setting-validation-errors {
+  background: var(--background-modifier-error);
+  border-color: var(--color-red);
+}
+
+.setting-validation-success {
+  background: var(--background-modifier-success);
+  border-color: var(--color-green);
+  color: var(--color-green);
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.setting-error-title {
+  color: var(--color-red);
+  margin: 0 0 8px 0;
+  font-size: 1em;
+  font-weight: 600;
+}
+
+.setting-error-item {
+  color: var(--color-red);
+  margin: 4px 0;
+  font-size: 0.9em;
+}
+
+.setting-validation-errors ul {
+  margin: 0;
+  padding-left: 20px;
+}

@@ -2299,16 +2299,46 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 
 	const s = this.plugin.settings;
 	
-	// Validation status
-	const validation = this.plugin.validateSettings();
-	if (!validation.isValid) {
-	  const errorDiv = containerEl.createEl('div', { cls: 'setting-validation-errors' });
-	  errorDiv.createEl('h3', { text: 'Configuration Issues:', cls: 'setting-error-title' });
-	  const errorList = errorDiv.createEl('ul');
-	  validation.errors.forEach(error => {
-		errorList.createEl('li', { text: error, cls: 'setting-error-item' });
-	  });
-	}
+	// Store references to elements that need updating
+	let configuredToggle: any;
+	let validationDisplay: HTMLElement;
+	
+	// Create validation status display
+	validationDisplay = containerEl.createEl('div', { cls: 'setting-validation-status' });
+	
+	// Function to update validation display and toggle state
+	const updateValidation = () => {
+	  const validation = this.plugin.validateSettings();
+	  
+	  // Clear and update validation display
+	  validationDisplay.empty();
+	  if (!validation.isValid) {
+		validationDisplay.createEl('h3', { text: 'Configuration Issues:', cls: 'setting-error-title' });
+		const errorList = validationDisplay.createEl('ul', { cls: 'setting-validation-errors' });
+		validation.errors.forEach(error => {
+		  errorList.createEl('li', { text: error, cls: 'setting-error-item' });
+		});
+	  } else {
+		validationDisplay.createEl('div', { 
+		  text: '✅ All settings are valid - you can now enable sync!', 
+		  cls: 'setting-validation-success' 
+		});
+	  }
+	  
+	  // Update configured toggle state
+	  if (configuredToggle) {
+		configuredToggle.setDisabled(!validation.isValid);
+		if (!validation.isValid && s.isConfigured) {
+		  // Auto-disable if settings become invalid
+		  s.isConfigured = false;
+		  configuredToggle.setValue(false);
+		  this.plugin.saveSettings();
+		}
+	  }
+	};
+	
+	// Initial validation display
+	updateValidation();
 
 	new Setting(containerEl)
 	  .setName('GitHub Repository URL')
@@ -2320,6 +2350,7 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		  s.repoUrl = value;
 		  await this.plugin.parseRepoUrl();
 		  await this.plugin.saveSettings();
+		  updateValidation(); // Update validation after change
 		}));
 
 	new Setting(containerEl)
@@ -2332,6 +2363,7 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 			if (value && value !== '••••••••••••••••') {
 			  await this.plugin.setSecureToken(value);
 			  text.setValue('••••••••••••••••'); // Mask the token immediately
+			  updateValidation(); // Update validation after change
 			}
 		  });
 		text.inputEl.type = 'password';
@@ -2348,6 +2380,7 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		.onChange(async (value) => {
 		  s.branch = value;
 		  await this.plugin.saveSettings();
+		  updateValidation(); // Update validation after change
 		}));
 
 	new Setting(containerEl)
@@ -2359,6 +2392,7 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		.onChange(async (value) => {
 		  s.excludePatterns = value.split(',').map(str => str.trim()).filter(Boolean);
 		  await this.plugin.saveSettings();
+		  updateValidation(); // Update validation after change
 		}));
 
 	new Setting(containerEl)
@@ -2370,6 +2404,7 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		.onChange(async (value) => {
 		  s.syncFolders = value.split(',').map(str => str.trim()).filter(Boolean);
 		  await this.plugin.saveSettings();
+		  updateValidation(); // Update validation after change
 		}));
 
 	new Setting(containerEl)
@@ -2383,6 +2418,7 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		  if (!isNaN(num) && num > 0) {
 			s.autoSyncInterval = num;
 			await this.plugin.saveSettings();
+			updateValidation(); // Update validation after change
 		  }
 		}));
 
@@ -2394,27 +2430,30 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		.onChange(async (value) => {
 		  s.useGitHubAPI = value;
 		  await this.plugin.saveSettings();
+		  updateValidation(); // Update validation after change
 		}));
 
 	new Setting(containerEl)
 	  .setName('Configured')
 	  .setDesc('Mark as configured (enable sync) - only enable after all settings are valid')
-	  .addToggle(toggle => toggle
-		.setValue(!!s.isConfigured)
-		.setDisabled(!validation.isValid)
-		.onChange(async (value) => {
-		  const currentValidation = this.plugin.validateSettings();
-		  if (value && !currentValidation.isValid) {
-			new Notice('Cannot enable sync: ' + currentValidation.errors.join(', '));
-			toggle.setValue(false);
-			return;
-		  }
-		  s.isConfigured = value;
-		  await this.plugin.saveSettings();
-		  if (value) {
-			new Notice('Mobile Git Sync enabled!');
-		  }
-		}));
+	  .addToggle(toggle => {
+		configuredToggle = toggle; // Store reference for updating
+		return toggle
+		  .setValue(!!s.isConfigured)
+		  .onChange(async (value) => {
+			const currentValidation = this.plugin.validateSettings();
+			if (value && !currentValidation.isValid) {
+			  new Notice('Cannot enable sync: ' + currentValidation.errors.join(', '));
+			  toggle.setValue(false);
+			  return;
+			}
+			s.isConfigured = value;
+			await this.plugin.saveSettings();
+			if (value) {
+			  new Notice('Mobile Git Sync enabled!');
+			}
+		  });
+	  });
 
 	// Add conflict resolution strategy setting
 	new Setting(containerEl)
@@ -2429,6 +2468,7 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		.onChange(async (value) => {
 		  this.plugin.settings.conflictStrategy = value as ConflictStrategy;
 		  await this.plugin.saveSettings();
+		  updateValidation(); // Update validation after change
 		})
 	  );
   }
