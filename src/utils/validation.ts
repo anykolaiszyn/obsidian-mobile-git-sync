@@ -436,13 +436,21 @@ export class InputValidator {
     warnings.push(...urlResult.warnings);
 
     // Validate GitHub token
-    const tokenResult = this.validateGitHubToken(settings.githubToken);
-    if (!tokenResult.isValid) {
-      errors.push(...tokenResult.errors);
+    // Skip token validation if using secure storage (token stored separately)
+    if (settings.useSecureStorage) {
+      // When using secure storage, the githubToken field should be empty
+      sanitizedValue.githubToken = '';
+      sanitizedValue.useSecureStorage = true;
+      warnings.push('Using secure token storage');
     } else {
-      sanitizedValue.githubToken = tokenResult.sanitizedValue;
+      const tokenResult = this.validateGitHubToken(settings.githubToken);
+      if (!tokenResult.isValid) {
+        errors.push(...tokenResult.errors);
+      } else {
+        sanitizedValue.githubToken = tokenResult.sanitizedValue;
+      }
+      warnings.push(...tokenResult.warnings);
     }
-    warnings.push(...tokenResult.warnings);
 
     // Validate branch
     const branchResult = this.validateBranchName(settings.branch);
@@ -465,9 +473,9 @@ export class InputValidator {
     // Validate other settings
     if (settings.autoSyncInterval !== undefined) {
       const interval = Number(settings.autoSyncInterval);
-      if (isNaN(interval) || interval < 60000) { // Minimum 1 minute
-        errors.push('Auto-sync interval must be at least 60 seconds');
-      } else if (interval > 24 * 60 * 60 * 1000) { // Maximum 24 hours
+      if (isNaN(interval) || interval < 1) { // Minimum 1 minute
+        errors.push('Auto-sync interval must be at least 1 minute');
+      } else if (interval > 24 * 60) { // Maximum 24 hours (in minutes)
         warnings.push('Auto-sync interval is very long (over 24 hours)');
         sanitizedValue.autoSyncInterval = interval;
       } else {

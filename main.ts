@@ -84,6 +84,13 @@ export default class MobileGitSyncPlugin extends Plugin {
 	// Migrate existing plain-text token if needed
 	await this.migrateTokenStorage();
 	
+	// Set useSecureStorage flag based on whether we have a secure token
+	const hasSecureToken = await this.secureTokenManager.hasToken();
+	if (hasSecureToken && !this.settings.useSecureStorage) {
+	  this.settings.useSecureStorage = true;
+	  await this.saveSettings();
+	}
+	
 	// Initialize status bar with interactive controls
 	this.statusBarItem = this.addStatusBarItem();
 	this.setupStatusBarInteraction();
@@ -1185,8 +1192,9 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  // Store securely
 	  await this.secureTokenManager.storeToken(validation.sanitizedValue!);
 	  
-	  // Clear plain-text token from settings
+	  // Clear plain-text token from settings and mark as using secure storage
 	  this.settings.githubToken = '';
+	  this.settings.useSecureStorage = true;
 	  await this.saveSettings();
 	  
 	  // Validate the stored token
@@ -1218,8 +1226,9 @@ export default class MobileGitSyncPlugin extends Plugin {
 		new Notice('Migrating token to secure storage...', 2000);
 		await this.secureTokenManager.migrateFromPlainTextToken(this.settings.githubToken);
 		
-		// Clear plain-text token after successful migration
+		// Clear plain-text token after successful migration and mark as using secure storage
 		this.settings.githubToken = '';
+		this.settings.useSecureStorage = true;
 		await this.saveSettings();
 	  }
 	} catch (error) {
