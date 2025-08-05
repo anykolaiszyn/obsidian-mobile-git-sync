@@ -51,58 +51,59 @@ export default class MobileGitSyncPlugin extends Plugin {
   repoName: string = '';
 
   async onload() {
-	await this.loadSettings();
+	try {
+	  await this.loadSettings();
+	  
+	  // Initialize service container
+	  this.container = new ServiceContainer();
+	  await this.registerServices();
 	
-	// Initialize service container
-	this.container = new ServiceContainer();
-	await this.registerServices();
+	  // Initialize core services
+	  this.logger = await this.container.get<Logger>('logger');
+	  this.secureTokenManager = await this.container.get<SecureTokenManager>('secureTokenManager');
+	  this.errorHandler = await this.container.get<IntelligentErrorHandler>('errorHandler');
+	  this.syncPlanner = await this.container.get<SyncPlannerService>('syncPlanner');
+	  this.conflictResolver = await this.container.get<ConflictResolutionService>('conflictResolver');
+	  this.mobileOptimizer = await this.container.get<MobileOptimizerService>('mobileOptimizer');
+	  this.performanceMonitor = await this.container.get<PerformanceMonitor>('performanceMonitor');
+	  this.memoryManager = await this.container.get<MemoryManager>('memoryManager');
+	  this.statusBarManager = await this.container.get<StatusBarManager>('statusBarManager');
 	
-	// Initialize core services
-	this.logger = await this.container.get<Logger>('logger');
-	this.secureTokenManager = await this.container.get<SecureTokenManager>('secureTokenManager');
-	this.errorHandler = await this.container.get<IntelligentErrorHandler>('errorHandler');
-	this.syncPlanner = await this.container.get<SyncPlannerService>('syncPlanner');
-	this.conflictResolver = await this.container.get<ConflictResolutionService>('conflictResolver');
-	this.mobileOptimizer = await this.container.get<MobileOptimizerService>('mobileOptimizer');
-	this.performanceMonitor = await this.container.get<PerformanceMonitor>('performanceMonitor');
-	this.memoryManager = await this.container.get<MemoryManager>('memoryManager');
-	this.statusBarManager = await this.container.get<StatusBarManager>('statusBarManager');
+	  // Log initialization
+	  this.logger.info('Mobile Git Sync Plugin initializing', {
+		version: this.manifest.version,
+		platform: navigator.platform,
+		userAgent: navigator.userAgent
+	  });
+	  
+	  // Check for crypto support
+	  if (!SecureTokenManager.isSupported()) {
+		new Notice('Warning: Secure token storage not supported on this device. Tokens will be stored less securely.', 5000);
+		this.logger.warn('Web Crypto API not supported - falling back to less secure storage');
+	  }
+	  
+	  // Migrate existing plain-text token if needed
+	  await this.migrateTokenStorage();
+	  
+	  // Set useSecureStorage flag based on whether we have a secure token
+	  const hasSecureToken = await this.secureTokenManager.hasToken();
+	  if (hasSecureToken && !this.settings.useSecureStorage) {
+		this.settings.useSecureStorage = true;
+		await this.saveSettings();
+	  }
+	  
+	  // Initialize status bar with interactive controls
+	  this.statusBarItem = this.addStatusBarItem();
+	  this.setupStatusBarInteraction();
+	  this.updateStatusBar('Git Sync Ready');
+	  
+	  // Add ribbon icon for quick access
+	  this.ribbonIcon = this.addRibbonIcon('git-branch', 'Git Sync Actions', (evt) => {
+		this.showQuickActionsMenu(evt);
+	  });
 	
-	// Log initialization
-	this.logger.info('Mobile Git Sync Plugin initializing', {
-	  version: this.manifest.version,
-	  platform: navigator.platform,
-	  userAgent: navigator.userAgent
-	});
-	
-	// Check for crypto support
-	if (!SecureTokenManager.isSupported()) {
-	  new Notice('Warning: Secure token storage not supported on this device. Tokens will be stored less securely.', 5000);
-	  this.logger.warn('Web Crypto API not supported - falling back to less secure storage');
-	}
-	
-	// Migrate existing plain-text token if needed
-	await this.migrateTokenStorage();
-	
-	// Set useSecureStorage flag based on whether we have a secure token
-	const hasSecureToken = await this.secureTokenManager.hasToken();
-	if (hasSecureToken && !this.settings.useSecureStorage) {
-	  this.settings.useSecureStorage = true;
-	  await this.saveSettings();
-	}
-	
-	// Initialize status bar with interactive controls
-	this.statusBarItem = this.addStatusBarItem();
-	this.setupStatusBarInteraction();
-	this.updateStatusBar('Git Sync Ready');
-	
-	// Add ribbon icon for quick access
-	this.ribbonIcon = this.addRibbonIcon('git-branch', 'Git Sync Actions', (evt) => {
-	  this.showQuickActionsMenu(evt);
-	});
-	
-	// Enhanced commands with better UX and desktop integration
-	this.addCommand({
+	  // Enhanced commands with better UX and desktop integration
+	  this.addCommand({
 	  id: 'mobile-git-sync-full-sync',
 	  name: '🔄 Full Sync (Pull then Push)',
 	  callback: () => this.fullSync(),
@@ -274,28 +275,39 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'b' }]
 	});
 
-	// Register the settings tab so the configuration UI appears
-	this.addSettingTab(new MobileGitSyncSettingTab(this.app, this));
-	
-	// Perform initial comprehensive sync scan
-	if (this.settings.isConfigured) {
-	  this.performInitialVaultScan();
+	  // Register the settings tab so the configuration UI appears
+	  this.addSettingTab(new MobileGitSyncSettingTab(this.app, this));
+	  
+	  // Perform initial comprehensive sync scan
+	  if (this.settings.isConfigured) {
+		this.performInitialVaultScan();
+	  }
+	  
+	  // Start auto-sync if configured
+	  if (this.settings.isConfigured && this.settings.autoSyncInterval > 0) {
+		this.startAutoSync();
+	  }
+	  
+	  // Set current branch
+	  this.currentBranch = this.settings.branch || 'main';
+	  
+	  // Request notification permission for desktop
+	  if (!(this.app as any).isMobile) {
+		this.requestNotificationPermission();
+	  }
+	  
+	  this.log('Plugin loaded with enhanced UX', 'info');
+	} catch (error) {
+	  console.error('Mobile Git Sync Plugin failed to load:', error);
+	  new Notice(`Mobile Git Sync Plugin failed to load: ${(error as Error).message}`, 10000);
+	  
+	  // Still register a basic settings tab if possible
+	  try {
+		this.addSettingTab(new MobileGitSyncSettingTab(this.app, this));
+	  } catch (settingsError) {
+		console.error('Failed to register settings tab:', settingsError);
+	  }
 	}
-	
-	// Start auto-sync if configured
-	if (this.settings.isConfigured && this.settings.autoSyncInterval > 0) {
-	  this.startAutoSync();
-	}
-	
-	// Set current branch
-	this.currentBranch = this.settings.branch || 'main';
-	
-	// Request notification permission for desktop
-	if (!(this.app as any).isMobile) {
-	  this.requestNotificationPermission();
-	}
-	
-	this.log('Plugin loaded with enhanced UX', 'info');
   }
 
   private log(message: string, level: LogLevel = 'info', data?: unknown): void {
@@ -1609,6 +1621,9 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  useGitHubAPI: true,
 	  isConfigured: false,
 	  conflictStrategy: 'prompt' as ConflictStrategy,
+	  useSecureStorage: false,
+	  lastTokenValidation: 0,
+	  migrationCompleted: false
 	};
 	
 	this.settings = Object.assign(defaultSettings, await this.loadData());

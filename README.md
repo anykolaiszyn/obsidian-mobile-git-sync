@@ -1,10 +1,10 @@
 # 🚀 Mobile Git Sync for Obsidian
 
-**The Rock Star of Git Sync** - A revolutionary enterprise-grade GitHub sync plugin for Obsidian that delivers best-in-class mobile performance with desktop-grade reliability. Built from the ground up with comprehensive bidirectional synchronization, intelligent conflict resolution, and advanced mobile optimizations.
+**Advanced Mobile Git Sync** - A comprehensive GitHub sync plugin for Obsidian designed for mobile performance with desktop reliability. Built with sophisticated bidirectional synchronization, intelligent conflict resolution, and advanced mobile optimizations.
 
-## 🌟 Why This Plugin is Revolutionary
+## 🌟 Key Features
 
-Unlike every other Git sync solution for Obsidian, this plugin delivers:
+This plugin provides:
 
 ### 📱 **Mobile-First Excellence**
 - ✅ **Actually works on mobile** - Extensively tested on Android and iOS with mobile-optimized UI
@@ -13,10 +13,10 @@ Unlike every other Git sync solution for Obsidian, this plugin delivers:
 - ✅ **Touch-optimized gestures** - Swipe-to-close, pull-to-refresh, and haptic feedback
 - ✅ **Progressive Web App features** - Offline queue, background sync, and install prompts
 
-### 🧠 **Enterprise-Grade Intelligence**
-- ✅ **Never misses files** - Revolutionary bidirectional sync compares local vs remote comprehensively
-- ✅ **AI-powered conflict resolution** - Advanced diff viewer with merge suggestions
-- ✅ **Intelligent sync planning** - Risk assessment and optimization recommendations
+### 🧠 **Comprehensive Intelligence**
+- ✅ **Thorough file detection** - Comprehensive bidirectional sync compares local vs remote thoroughly
+- ✅ **Intelligent conflict resolution** - Advanced diff viewer with rule-based resolution suggestions
+- ✅ **Smart sync planning** - Risk assessment and optimization recommendations
 - ✅ **Streaming file processing** - Handles large files with memory-efficient chunked operations
 - ✅ **Comprehensive analytics** - Performance monitoring with interactive dashboards
 
@@ -26,14 +26,14 @@ Unlike every other Git sync solution for Obsidian, this plugin delivers:
 - ✅ **Memory management** - Automatic optimization with garbage collection
 - ✅ **Performance monitoring** - Real-time metrics with threshold-based alerts
 
-## 🏗️ Enterprise Architecture
+## 🏗️ Advanced Architecture
 
 ### 🎯 **Modular Service Architecture**
 This plugin is built with a sophisticated service-oriented architecture using dependency injection:
 
 #### 🧠 **Core Services**
 - **SyncPlannerService** - Intelligent sync planning with comprehensive risk assessment
-- **ConflictResolutionService** - Advanced three-way merge with AI-powered suggestions
+- **ConflictResolutionService** - Advanced three-way merge with intelligent resolution suggestions
 - **StreamProcessor** - Memory-efficient processing of large files with resumable transfers
 - **MemoryManager** - Automatic memory optimization with intelligent caching
 - **PerformanceMonitor** - Real-time metrics collection with trend analysis
