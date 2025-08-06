@@ -1629,8 +1629,8 @@ export default class MobileGitSyncPlugin extends Plugin {
 	this.settings = Object.assign(defaultSettings, await this.loadData());
 	await this.parseRepoUrl();
 	
-	// Validate settings on load
-	const validation = this.validateSettings();
+	// Validate settings on load (using async to check secure tokens)
+	const validation = await this.validateSettingsAsync();
 	if (!validation.isValid && this.settings.isConfigured) {
 	  this.log('Settings validation failed: ' + validation.errors.join(', '), 'error');
 	  this.settings.isConfigured = false;
@@ -1901,7 +1901,8 @@ export default class MobileGitSyncPlugin extends Plugin {
   }
 
   async performManualSync(): Promise<void> {
-	const validation = this.validateSettings();
+	// Use async validation to check secure tokens
+	const validation = await this.validateSettingsAsync();
 	if (!validation.isValid) {
 	  new Notice('Please configure GitHub sync settings first: ' + validation.errors.join(', '));
 	  return;
@@ -2490,7 +2491,8 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		return toggle
 		  .setValue(!!s.isConfigured)
 		  .onChange(async (value) => {
-			const currentValidation = this.plugin.validateSettings();
+			// Use async validation to check secure tokens
+			const currentValidation = await this.plugin.validateSettingsAsync();
 			if (value && !currentValidation.isValid) {
 			  new Notice('Cannot enable sync: ' + currentValidation.errors.join(', '));
 			  toggle.setValue(false);
@@ -2500,6 +2502,8 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 			await this.plugin.saveSettings();
 			if (value) {
 			  new Notice('Mobile Git Sync enabled!');
+			  // Update validation display after successful configuration
+			  updateValidation();
 			}
 		  });
 	  });

@@ -889,6 +889,35 @@
   padding-left: 20px;
 }
 
+/* Mobile-specific validation improvements */
+@media (max-width: 768px) {
+  .setting-validation-status {
+    margin-bottom: 24px;
+    padding: 16px;
+    font-size: 0.95em;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .setting-error-title {
+    font-size: 1.1em;
+    margin-bottom: 12px;
+  }
+  
+  .setting-error-item {
+    font-size: 0.95em;
+    line-height: 1.4;
+    margin: 6px 0;
+  }
+  
+  .setting-validation-success {
+    font-size: 1em;
+    padding: 16px;
+  }
+}
+
 /* Buy Me a Coffee Support Section */
 .setting-support-section {
   background: linear-gradient(135deg, #ff813f 0%, #ff6b35 100%);
