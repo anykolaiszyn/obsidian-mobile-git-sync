@@ -47,7 +47,7 @@ export type MemoryPressureHandler = (event: MemoryPressureEvent) => Promise<void
 export class MemoryManager extends DisposableService {
   private cache = new Map<string, CacheEntry>();
   private pressureHandlers = new Set<MemoryPressureHandler>();
-  private monitoringInterval: NodeJS.Timeout | null = null;
+  private monitoringInterval: number | null = null;
   private lastCleanup = 0;
   private performanceObserver: PerformanceObserver | null = null;
 
@@ -389,7 +389,7 @@ export class MemoryManager extends DisposableService {
           stats
         });
       }
-    }, this.monitoringFrequency);
+    }, this.monitoringFrequency) as unknown as number;
   }
 
   /**

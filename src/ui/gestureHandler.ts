@@ -48,7 +48,7 @@ export class GestureHandlerService extends DisposableService {
   private activeTouches = new Map<number, TouchPoint>();
   private gestureStartTime = 0;
   private lastClickTime = 0;
-  private longPressTimer: NodeJS.Timeout | null = null;
+  private longPressTimer: number | null = null;
   private isProcessingGesture = false;
 
   private readonly defaultConfig: GestureConfig = {
@@ -506,7 +506,7 @@ export class GestureHandlerService extends DisposableService {
         originalEvent: event
       });
       this.longPressTimer = null;
-    }, config.longPressDelay);
+    }, config.longPressDelay) as unknown as number;
   }
 
   /**

@@ -18,6 +18,10 @@ export interface PluginSettings {
 	useSecureStorage?: boolean;
 	lastTokenValidation?: number;
 	migrationCompleted?: boolean;
+	// UX Enhancement settings
+	userMode?: 'beginner' | 'advanced';
+	autoSyncEnabled?: boolean;
+	hasCompletedOnboarding?: boolean;
 }
 
 export type ConflictStrategy = 'prompt' | 'latest' | 'local' | 'remote';

@@ -1,0 +1,55 @@
+{
+  "name": "Obsidian Mobile Git Sync",
+  "short_name": "Git Sync",
+  "description": "Revolutionary mobile-first GitHub sync plugin for Obsidian",
+  "version": "1.1.0",
+  "manifest_version": 2,
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#483699",
+  "background_color": "#1e1e1e",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png", 
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["productivity", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Sync Now",
+      "short_name": "Sync",
+      "description": "Sync your notes immediately",
+      "url": "/?action=sync",
+      "icons": [
+        {
+          "src": "/sync-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    },
+    {
+      "name": "Check Status",
+      "short_name": "Status", 
+      "description": "View sync status and history",
+      "url": "/?action=status",
+      "icons": [
+        {
+          "src": "/status-icon.png",
+          "sizes": "96x96"
+        }
+      ]
+    }
+  ],
+  "prefer_related_applications": false
+}

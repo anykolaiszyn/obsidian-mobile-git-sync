@@ -55,8 +55,8 @@ export class MobileOptimizerService extends DisposableService {
   private batteryInfo: BatteryInfo | null = null;
   private networkInfo: NetworkInfo | null = null;
   private dataUsageTracker = new Map<string, number>();
-  private batteryUpdateInterval: NodeJS.Timeout | null = null;
-  private networkUpdateInterval: NodeJS.Timeout | null = null;
+  private batteryUpdateInterval: number | null = null;
+  private networkUpdateInterval: number | null = null;
   
   constructor(
     private logger: Logger,
@@ -520,7 +520,7 @@ export class MobileOptimizerService extends DisposableService {
           this.updateBatteryInfo(battery);
         });
       }
-    }, 60000);
+    }, 60000) as unknown as number;
 
     // Clean up old data usage entries
     setInterval(() => {

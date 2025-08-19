@@ -39,7 +39,7 @@ export class StatusBarManager extends DisposableService {
     status: 'idle',
     message: 'Git Sync Ready'
   };
-  private updateInterval: NodeJS.Timeout | null = null;
+  private updateInterval: number | null = null;
   private progressAnimationFrame: number | null = null;
 
   constructor(
@@ -413,7 +413,7 @@ export class StatusBarManager extends DisposableService {
       if (this.currentState.lastSync && this.options.showLastSync) {
         this.updateDisplay();
       }
-    }, 60000); // Update every minute
+    }, 60000) as unknown as number; // Update every minute
   }
 
   /**

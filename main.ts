@@ -15,8 +15,9 @@ import { StatusBarManager } from './src/ui/statusBarManager';
 
 
 export default class MobileGitSyncPlugin extends Plugin {
-  private autoSyncIntervalId: NodeJS.Timeout | null = null;
-  private fileChangeDebounceTimer: NodeJS.Timeout | null = null;
+  private autoSyncIntervalId: number | null = null;
+  private fileChangeDebounceTimer: number | null = null;
+  private activeTimers: Set<number> = new Set();
   private retryConfig: RetryConfig = {
     maxRetries: 3,
     initialDelay: 1000,
@@ -52,9 +53,27 @@ export default class MobileGitSyncPlugin extends Plugin {
 
   async onload() {
 	try {
+	  // Check if we're running on mobile
+	  const isMobile = (this.app as any).isMobile || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+	  
+	  // Mobile-specific initialization with enhanced error handling
+	  if (isMobile) {
+		console.log('Mobile Git Sync: Initializing for mobile platform');
+		
+		// Mobile memory optimization
+		if ('memory' in performance && (performance as any).memory) {
+		  const memInfo = (performance as any).memory;
+		  console.log('Mobile Git Sync: Memory available:', {
+			used: Math.round(memInfo.usedJSHeapSize / 1024 / 1024) + 'MB',
+			total: Math.round(memInfo.totalJSHeapSize / 1024 / 1024) + 'MB',
+			limit: Math.round(memInfo.jsHeapSizeLimit / 1024 / 1024) + 'MB'
+		  });
+		}
+	  }
+	  
 	  await this.loadSettings();
 	  
-	  // Initialize service container
+	  // Initialize service container with mobile-aware timeout
 	  this.container = new ServiceContainer();
 	  await this.registerServices();
 	
@@ -102,48 +121,19 @@ export default class MobileGitSyncPlugin extends Plugin {
 		this.showQuickActionsMenu(evt);
 	  });
 	
-	  // Enhanced commands with better UX and desktop integration
-	  this.addCommand({
-	  id: 'mobile-git-sync-full-sync',
-	  name: '🔄 Full Sync (Pull then Push)',
-	  callback: () => this.fullSync(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 's' }]
-	});
+	  // Check for first-time setup
+	  if (!this.settings.hasCompletedOnboarding && !this.settings.isConfigured) {
+		// Show onboarding wizard for new users
+		this.showOnboardingWizard();
+	  }
+	  
+	  // Setup commands with user-friendly names and categorization
+	  this.setupCommands();
 	
-	this.addCommand({
-	  id: 'mobile-git-sync-push-only',
-	  name: '⬆️ Push Changes Only',
-	  callback: () => this.pushOnly(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'p' }]
-	});
 	
-	this.addCommand({
-	  id: 'mobile-git-sync-pull-only',
-	  name: '⬇️ Pull Changes Only',
-	  callback: () => this.pullFromRemote(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'l' }]
-	});
 	
-	this.addCommand({
-	  id: 'mobile-git-sync-quick-commit',
-	  name: '💾 Quick Commit with Message',
-	  callback: () => this.showQuickCommitModal(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'c' }]
-	});
 	
-	this.addCommand({
-	  id: 'mobile-git-sync-view-history',
-	  name: '📜 View Sync History',
-	  callback: () => this.showSyncHistory(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'h' }]
-	});
 	
-	this.addCommand({
-	  id: 'mobile-git-sync-switch-branch',
-	  name: '🌿 Switch Branch',
-	  callback: () => this.showBranchSwitcher(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'b' }]
-	});
 
 
 	// Listen for file changes in the vault with debouncing
@@ -183,98 +173,6 @@ export default class MobileGitSyncPlugin extends Plugin {
 	window.addEventListener('online', this.onlineHandler);
 	window.addEventListener('offline', this.offlineHandler);
 
-	// Add command to pull from remote
-	this.addCommand({
-	  id: 'mobile-git-sync-pull-remote',
-	  name: 'Pull from Remote',
-	  callback: () => this.pullFromRemote(),
-	});
-
-	this.addCommand({
-	  id: 'mobile-git-sync-view-pending',
-	  name: '📋 View Pending Changes',
-	  callback: () => this.showPendingChangesModal(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'v' }]
-	});
-	
-	this.addCommand({
-	  id: 'mobile-git-sync-smart-sync',
-	  name: '🧠 Smart Sync (Auto-resolve conflicts)',
-	  callback: () => this.smartSync(),
-	  hotkeys: [{ modifiers: ['Mod', 'Alt'], key: 's' }]
-	});
-	
-	// Desktop-specific commands
-	this.addCommand({
-	  id: 'mobile-git-sync-force-push',
-	  name: '⚡ Force Push (Override Remote)',
-	  callback: () => this.showForcePushModal(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift', 'Alt'], key: 'p' }]
-	});
-	
-	this.addCommand({
-	  id: 'mobile-git-sync-sync-current-file',
-	  name: '📄 Sync Current File Only',
-	  checkCallback: (checking) => {
-		const activeFile = this.app.workspace.getActiveFile();
-		if (activeFile) {
-		  if (!checking) {
-			this.syncCurrentFile(activeFile);
-		  }
-		  return true;
-		}
-		return false;
-	  },
-	  hotkeys: [{ modifiers: ['Mod'], key: 'u' }]
-	});
-	
-	this.addCommand({
-	  id: 'mobile-git-sync-toggle-auto-sync',
-	  name: '🔄 Toggle Auto-Sync',
-	  callback: () => this.toggleAutoSync(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'a' }]
-	});
-	
-	this.addCommand({
-	  id: 'mobile-git-sync-open-settings',
-	  name: '⚙️ Open Git Sync Settings',
-	  callback: () => this.openSettings(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'g' }]
-	});
-	
-	this.addCommand({
-	  id: 'mobile-git-sync-push-all',
-	  name: '🚀 Push All Local Files',
-	  callback: () => this.pushAllLocal(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift', 'Alt'], key: 'u' }]
-	});
-	
-	this.addCommand({
-	  id: 'mobile-git-sync-scan-vault',
-	  name: '🔍 Scan Vault for Changes',
-	  callback: () => this.performInitialVaultScan(),
-	});
-	
-	this.addCommand({
-	  id: 'mobile-git-sync-show-sync-plan',
-	  name: '📊 Show Sync Plan',
-	  callback: () => this.showSyncPlan(),
-	});
-	
-	this.addCommand({
-	  id: 'mobile-git-sync-bulk-operations',
-	  name: '⚡ Bulk Operations',
-	  callback: () => this.showBulkOperations(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'k' }]
-	});
-
-	this.addCommand({
-	  id: 'mobile-git-sync-create-backup',
-	  name: '💾 Create Backup',
-	  callback: () => this.showBackupOptions(),
-	  hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'b' }]
-	});
-
 	  // Register the settings tab so the configuration UI appears
 	  this.addSettingTab(new MobileGitSyncSettingTab(this.app, this));
 	  
@@ -298,8 +196,25 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  
 	  this.log('Plugin loaded with enhanced UX', 'info');
 	} catch (error) {
+	  const isMobile = (this.app as any).isMobile || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+	  const errorMessage = (error as Error).message;
+	  
 	  console.error('Mobile Git Sync Plugin failed to load:', error);
-	  new Notice(`Mobile Git Sync Plugin failed to load: ${(error as Error).message}`, 10000);
+	  console.error('Error details:', {
+		message: errorMessage,
+		stack: (error as Error).stack,
+		isMobile,
+		userAgent: navigator.userAgent,
+		platform: navigator.platform
+	  });
+	  
+	  // Mobile-specific error messaging
+	  if (isMobile) {
+		new Notice(`⚠️ Mobile Git Sync failed to load on ${navigator.platform}. This may be due to memory constraints or missing mobile APIs. Error: ${errorMessage}`, 15000);
+		console.log('Mobile Git Sync: If this persists, try restarting Obsidian or clearing the plugin cache.');
+	  } else {
+		new Notice(`Mobile Git Sync Plugin failed to load: ${errorMessage}`, 10000);
+	  }
 	  
 	  // Still register a basic settings tab if possible
 	  try {
@@ -373,6 +288,48 @@ export default class MobileGitSyncPlugin extends Plugin {
 		   error.message.includes('timeout') ||
 		   error.message.includes('ENOTFOUND') ||
 		   error.message.includes('ECONNRESET');
+  }
+
+  /**
+   * Timer management to prevent memory leaks
+   */
+  private createTimer(callback: () => void, delay: number): number {
+    const timerId = setTimeout(() => {
+      this.activeTimers.delete(timerId);
+      callback();
+    }, delay) as unknown as number;
+    this.activeTimers.add(timerId);
+    return timerId;
+  }
+
+  private createInterval(callback: () => void, interval: number): number {
+    const intervalId = setInterval(callback, interval) as unknown as number;
+    this.activeTimers.add(intervalId);
+    return intervalId;
+  }
+
+  private clearTimer(timerId: number | null): void {
+    if (timerId) {
+      clearTimeout(timerId);
+      this.activeTimers.delete(timerId);
+    }
+  }
+
+  private clearInterval(intervalId: number | null): void {
+    if (intervalId) {
+      clearInterval(intervalId);
+      this.activeTimers.delete(intervalId);
+    }
+  }
+
+  private clearAllTimers(): void {
+    this.activeTimers.forEach(timerId => {
+      clearTimeout(timerId);
+      clearInterval(timerId);
+    });
+    this.activeTimers.clear();
+    this.autoSyncIntervalId = null;
+    this.fileChangeDebounceTimer = null;
   }
 
   // Recursively fetch all files in the repo (including subfolders)
@@ -769,18 +726,6 @@ export default class MobileGitSyncPlugin extends Plugin {
 	}
   }
 
-  toggleAutoSync(): void {
-	if (this.autoSyncIntervalId) {
-	  this.stopAutoSync();
-	  new Notice('🔴 Auto-sync disabled');
-	} else if (this.settings.isConfigured) {
-	  this.startAutoSync();
-	  new Notice(`🟢 Auto-sync enabled (${this.settings.autoSyncInterval} min intervals)`);
-	} else {
-	  new Notice('⚠️ Please configure Git sync settings first');
-	  this.openSettings();
-	}
-  }
 
   openSettings(): void {
 	// @ts-ignore - Obsidian internal API
@@ -1233,11 +1178,8 @@ export default class MobileGitSyncPlugin extends Plugin {
   async onunload() {
 	this.stopAutoSync();
 	
-	// Clear debounce timer
-	if (this.fileChangeDebounceTimer) {
-	  clearTimeout(this.fileChangeDebounceTimer);
-	  this.fileChangeDebounceTimer = null;
-	}
+	// Clear all timers to prevent memory leaks
+	this.clearAllTimers();
 	
 	// Remove event listeners
 	window.removeEventListener('online', this.onlineHandler);
@@ -1445,7 +1387,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	if (message.includes('rate limit') || message.includes('403')) {
 	  this.showWarning('Rate limit reached - Sync will resume automatically after cooldown');
 	  // Schedule retry for later
-	  setTimeout(() => {
+	  this.createTimer(() => {
 		this.showWarning('Rate limit cooldown complete, resuming sync');
 	  }, 60 * 60 * 1000); // 1 hour
 	  return false;
@@ -1514,18 +1456,7 @@ export default class MobileGitSyncPlugin extends Plugin {
       return new IntelligentErrorHandler(this.app);
     }, 'singleton');
 
-    // Register core services
-    this.container.register('syncPlanner', async () => {
-      const logger = await this.container.get<Logger>('logger');
-      const mobileOptimizer = await this.container.get<MobileOptimizerService>('mobileOptimizer');
-      return new SyncPlannerService(logger, mobileOptimizer);
-    }, 'singleton');
-
-    this.container.register('conflictResolver', async () => {
-      return new ConflictResolutionService(this.app);
-    }, 'singleton');
-
-    // Register mobile optimization services
+    // Register mobile optimization services first (needed by other services)
     this.container.register('mobileOptimizer', async () => {
       const logger = await this.container.get<Logger>('logger');
       return new MobileOptimizerService(logger, {
@@ -1538,6 +1469,17 @@ export default class MobileGitSyncPlugin extends Plugin {
         preloadContent: false,
         backgroundSync: true
       });
+    }, 'singleton');
+
+    // Register core services
+    this.container.register('syncPlanner', async () => {
+      const logger = await this.container.get<Logger>('logger');
+      const mobileOptimizer = await this.container.get<MobileOptimizerService>('mobileOptimizer');
+      return new SyncPlannerService(logger, mobileOptimizer);
+    }, 'singleton');
+
+    this.container.register('conflictResolver', async () => {
+      return new ConflictResolutionService(this.app);
     }, 'singleton');
 
     // Register performance and memory services
@@ -1615,15 +1557,19 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  repoUrl: '',
 	  githubToken: '',
 	  branch: 'main',
-	  excludePatterns: [],
+	  excludePatterns: ['.obsidian/workspace*', '*.tmp', '.trash/'],
 	  syncFolders: [],
-	  autoSyncInterval: 5,
+	  autoSyncInterval: 15, // 15 minutes for better battery life
 	  useGitHubAPI: true,
 	  isConfigured: false,
 	  conflictStrategy: 'prompt' as ConflictStrategy,
 	  useSecureStorage: false,
 	  lastTokenValidation: 0,
-	  migrationCompleted: false
+	  migrationCompleted: false,
+	  // UX Enhancement defaults
+	  userMode: 'beginner', // Start with beginner mode
+	  autoSyncEnabled: true, // Auto-sync on by default
+	  hasCompletedOnboarding: false
 	};
 	
 	this.settings = Object.assign(defaultSettings, await this.loadData());
@@ -1656,7 +1602,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	}
 	
 	const intervalMs = this.settings.autoSyncInterval * 60 * 1000; // Convert minutes to milliseconds
-	this.autoSyncIntervalId = setInterval(async () => {
+	this.autoSyncIntervalId = this.createInterval(async () => {
 	  if (this.settings.isConfigured && this.changeQueue.size > 0 && this.isOnline() && !this.isSyncing) {
 		try {
 		  this.log(`Auto-sync triggered (${this.changeQueue.size} changes)`, 'info');
@@ -1672,7 +1618,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 
   private stopAutoSync(): void {
 	if (this.autoSyncIntervalId) {
-	  clearInterval(this.autoSyncIntervalId);
+	  this.clearInterval(this.autoSyncIntervalId);
 	  this.autoSyncIntervalId = null;
 	  this.log('Auto-sync stopped', 'info');
 	}
@@ -1957,10 +1903,10 @@ export default class MobileGitSyncPlugin extends Plugin {
 
   private debouncedQueueFileChange(filePath: string, type: 'create' | 'modify'): void {
 	if (this.fileChangeDebounceTimer) {
-	  clearTimeout(this.fileChangeDebounceTimer);
+	  this.clearTimer(this.fileChangeDebounceTimer);
 	}
 	
-	this.fileChangeDebounceTimer = setTimeout(() => {
+	this.fileChangeDebounceTimer = this.createTimer(() => {
 	  this.queueFileChange(filePath, type);
 	}, 1000); // 1 second debounce
   }
@@ -2194,6 +2140,323 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  new Notice(`Failed to upload ${filePath}`);
 	}
   }
+
+  /**
+   * Setup commands with user-friendly names and categorization
+   */
+  private setupCommands(): void {
+    const isBeginnerMode = this.settings.userMode === 'beginner';
+    
+    // Essential Commands (shown to all users)
+    this.addCommand({
+      id: 'mobile-git-sync-sync-now',
+      name: isBeginnerMode ? 'Git Sync: 🔄 Sync My Notes' : 'Git Sync: 🔄 Sync Now',
+      callback: () => this.fullSync(),
+      hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 's' }]
+    });
+
+    this.addCommand({
+      id: 'mobile-git-sync-setup',
+      name: 'Git Sync: ⚙️ Setup & Settings',
+      callback: () => {
+        if (!this.settings.hasCompletedOnboarding) {
+          this.showOnboardingWizard();
+        } else {
+          // Open settings tab
+          (this.app as any).setting.open();
+          (this.app as any).setting.openTabById('mobile-git-sync');
+        }
+      }
+    });
+
+    this.addCommand({
+      id: 'mobile-git-sync-status',
+      name: isBeginnerMode ? 'Git Sync: 📊 Check Status' : 'Git Sync: 📊 Status & History',
+      callback: () => this.showSyncHistory()
+    });
+
+    if (isBeginnerMode) {
+      // Simplified commands for beginners
+      this.addCommand({
+        id: 'mobile-git-sync-get-latest',
+        name: 'Git Sync: ⬇️ Get Latest Notes',
+        callback: () => this.pullFromRemote()
+      });
+
+      this.addCommand({
+        id: 'mobile-git-sync-save-notes',
+        name: 'Git Sync: ⬆️ Save My Changes',
+        callback: () => this.showQuickCommitModal()
+      });
+
+      this.addCommand({
+        id: 'mobile-git-sync-help',
+        name: 'Git Sync: ❓ Help & Tutorials',
+        callback: () => this.showBeginnerHelp()
+      });
+
+    } else {
+      // Advanced commands for experienced users
+      this.addCommand({
+        id: 'mobile-git-sync-pull-only',
+        name: 'Git Sync: ⬇️ Pull Changes Only',
+        callback: () => this.pullFromRemote(),
+        hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'l' }]
+      });
+
+      this.addCommand({
+        id: 'mobile-git-sync-push-only',
+        name: 'Git Sync: ⬆️ Push Changes Only',
+        callback: () => this.pushOnly(),
+        hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'p' }]
+      });
+
+      this.addCommand({
+        id: 'mobile-git-sync-smart-sync',
+        name: 'Git Sync: 🧠 Smart Sync (Auto-resolve)',
+        callback: () => this.smartSync(),
+        hotkeys: [{ modifiers: ['Mod', 'Alt'], key: 's' }]
+      });
+
+      this.addCommand({
+        id: 'mobile-git-sync-force-push',
+        name: 'Git Sync: 🔧 Force Push (Override Remote)',
+        callback: () => this.forcePush(),
+        hotkeys: [{ modifiers: ['Mod', 'Alt'], key: 'p' }]
+      });
+
+      this.addCommand({
+        id: 'mobile-git-sync-switch-branch',
+        name: 'Git Sync: 🌿 Switch Branch',
+        callback: () => this.showBranchSwitcher(),
+        hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'b' }]
+      });
+
+      this.addCommand({
+        id: 'mobile-git-sync-view-pending',
+        name: 'Git Sync: 📋 View Pending Changes',
+        callback: () => this.showPendingChangesModal(),
+        hotkeys: [{ modifiers: ['Mod', 'Shift'], key: 'v' }]
+      });
+
+      this.addCommand({
+        id: 'mobile-git-sync-sync-plan',
+        name: 'Git Sync: 📋 Show Sync Plan',
+        callback: () => this.showSyncPlan()
+      });
+
+      this.addCommand({
+        id: 'mobile-git-sync-current-file',
+        name: 'Git Sync: 📄 Sync Current File Only',
+        checkCallback: (checking: boolean) => {
+          const activeFile = this.app.workspace.getActiveFile();
+          if (checking) return !!activeFile;
+          if (activeFile) {
+            this.syncCurrentFile(activeFile);
+          }
+          return true;
+        }
+      });
+
+      this.addCommand({
+        id: 'mobile-git-sync-create-backup',
+        name: 'Git Sync: 💾 Create Backup',
+        callback: () => this.createBackup()
+      });
+
+      this.addCommand({
+        id: 'mobile-git-sync-bulk-operations',
+        name: 'Git Sync: 🔄 Bulk Operations',
+        callback: () => this.showBulkOperations()
+      });
+    }
+
+    // Always available utility commands
+    this.addCommand({
+      id: 'mobile-git-sync-toggle-auto-sync',
+      name: isBeginnerMode ? 'Git Sync: ⚡ Turn Auto-Sync On/Off' : 'Git Sync: ⚡ Toggle Auto-Sync',
+      callback: () => this.toggleAutoSync()
+    });
+  }
+
+  /**
+   * Show onboarding wizard for new users
+   */
+  private showOnboardingWizard(): void {
+    import('./src/ui/onboardingWizard').then(({ OnboardingWizard }) => {
+      new OnboardingWizard(this.app, this).open();
+    });
+  }
+
+  /**
+   * Show help for beginner users
+   */
+  private showBeginnerHelp(): void {
+    const helpModal = new Modal(this.app);
+    helpModal.titleEl.setText('📱 Mobile Git Sync Help');
+    helpModal.modalEl.addClass('git-sync-help-modal');
+
+    const content = helpModal.contentEl;
+    content.innerHTML = `
+      <div class="help-section">
+        <h3>🔄 Syncing Your Notes</h3>
+        <p><strong>Sync My Notes</strong> - Keeps your notes in sync across all devices</p>
+        <p><strong>Get Latest Notes</strong> - Downloads the newest versions from other devices</p>
+        <p><strong>Save My Changes</strong> - Uploads your changes so other devices can see them</p>
+      </div>
+
+      <div class="help-section">
+        <h3>📊 Understanding Status</h3>
+        <p>Look at the status bar at the bottom of Obsidian to see:</p>
+        <ul>
+          <li>✅ <strong>Synced</strong> - Everything is up to date</li>
+          <li>🔄 <strong>Syncing</strong> - Currently updating notes</li>
+          <li>📝 <strong>Changes pending</strong> - You have unsaved changes</li>
+          <li>⚠️ <strong>Needs attention</strong> - Something needs your input</li>
+        </ul>
+      </div>
+
+      <div class="help-section">
+        <h3>❓ What if something goes wrong?</h3>
+        <p>Don't worry! Your notes are safe. Use <strong>Check Status</strong> to see what's happening.</p>
+        <p>If you see a conflict, it means the same note was changed in two places. Just pick which version to keep.</p>
+      </div>
+
+      <div class="help-section">
+        <h3>⚙️ Need More Control?</h3>
+        <p>Go to <strong>Setup & Settings</strong> to switch to Advanced Mode for more options.</p>
+      </div>
+    `;
+
+    const closeButton = content.createEl('button', { text: 'Got it!', cls: 'mod-cta' });
+    closeButton.style.marginTop = '20px';
+    closeButton.style.width = '100%';
+    closeButton.style.minHeight = '44px';
+    closeButton.addEventListener('click', () => helpModal.close());
+
+    helpModal.open();
+  }
+
+  /**
+   * Toggle auto-sync on/off
+   */
+  private toggleAutoSync(): void {
+    this.settings.autoSyncEnabled = !this.settings.autoSyncEnabled;
+    this.settings.autoSyncInterval = this.settings.autoSyncEnabled ? 15 : 0;
+    this.saveSettings();
+    
+    if (this.settings.autoSyncEnabled) {
+      this.startAutoSync();
+      new Notice('✅ Auto-sync enabled (every 15 minutes)');
+    } else {
+      this.stopAutoSync();
+      new Notice('⏸️ Auto-sync disabled');
+    }
+  }
+
+  /**
+   * Show user-friendly error with progressive disclosure
+   */
+  private showUserFriendlyError(error: Error, context: string): void {
+    const isBeginnerMode = this.settings.userMode === 'beginner';
+    let userMessage = '';
+    let technicalDetails = '';
+
+    // Categorize common errors with user-friendly messages
+    if (error.message.includes('401') || error.message.includes('authentication')) {
+      userMessage = isBeginnerMode 
+        ? '🔑 There\'s an issue with your GitHub access. You may need to check your token.'
+        : '🔑 Authentication failed. Please check your GitHub token.';
+      technicalDetails = `Authentication error during ${context}: ${error.message}`;
+    } else if (error.message.includes('403') || error.message.includes('rate limit')) {
+      userMessage = isBeginnerMode
+        ? '⏳ GitHub is asking us to slow down. Your sync will resume automatically.'
+        : '⏳ Rate limited by GitHub API. Sync will retry automatically.';
+      technicalDetails = `Rate limit error during ${context}: ${error.message}`;
+    } else if (error.message.includes('404') || error.message.includes('not found')) {
+      userMessage = isBeginnerMode
+        ? '📂 Couldn\'t find the repository. Please check your setup.'
+        : '📂 Repository not found. Please verify your repository URL.';
+      technicalDetails = `Repository not found during ${context}: ${error.message}`;
+    } else if (error.message.includes('network') || error.message.includes('offline')) {
+      userMessage = isBeginnerMode
+        ? '📡 No internet connection. Your changes will sync when you\'re back online.'
+        : '📡 Network error. Changes queued for next sync attempt.';
+      technicalDetails = `Network error during ${context}: ${error.message}`;
+    } else {
+      userMessage = isBeginnerMode
+        ? '⚠️ Something went wrong with the sync. You can try again or check the status.'
+        : `⚠️ Sync error during ${context}. Check logs for details.`;
+      technicalDetails = error.message;
+    }
+
+    // Show the user-friendly message
+    new Notice(userMessage, isBeginnerMode ? 8000 : 5000);
+
+    // For advanced users or debugging, also log technical details
+    if (!isBeginnerMode || this.settings.isConfigured) {
+      console.error(`Mobile Git Sync: ${technicalDetails}`);
+      this.log(technicalDetails, 'error');
+    }
+
+    // Create expandable error modal for beginners who want more info
+    if (isBeginnerMode) {
+      const errorModal = new Modal(this.app);
+      errorModal.titleEl.setText('Sync Issue Details');
+      errorModal.modalEl.addClass('git-sync-error-modal');
+
+      const content = errorModal.contentEl;
+      content.innerHTML = `
+        <div class="error-summary">
+          <p>${userMessage}</p>
+        </div>
+        <details class="error-details">
+          <summary>🔍 Show technical details</summary>
+          <div class="technical-details">
+            <p><strong>Context:</strong> ${context}</p>
+            <p><strong>Error:</strong> ${error.message}</p>
+            <p><strong>What you can try:</strong></p>
+            <ul>
+              <li>Wait a moment and try syncing again</li>
+              <li>Check your internet connection</li>
+              <li>Go to Settings to verify your setup</li>
+              <li>Use "Check Status" to see if there are other issues</li>
+            </ul>
+          </div>
+        </details>
+      `;
+
+      const buttons = content.createDiv('error-buttons');
+      buttons.style.marginTop = '16px';
+      buttons.style.display = 'flex';
+      buttons.style.gap = '8px';
+
+      const tryAgainBtn = buttons.createEl('button', { text: '🔄 Try Again', cls: 'mod-cta' });
+      tryAgainBtn.style.minHeight = '44px';
+      tryAgainBtn.addEventListener('click', () => {
+        errorModal.close();
+        this.fullSync();
+      });
+
+      const settingsBtn = buttons.createEl('button', { text: '⚙️ Check Settings' });
+      settingsBtn.style.minHeight = '44px';
+      settingsBtn.addEventListener('click', () => {
+        errorModal.close();
+        this.showOnboardingWizard();
+      });
+
+      const okBtn = buttons.createEl('button', { text: 'Got it' });
+      okBtn.style.minHeight = '44px';
+      okBtn.addEventListener('click', () => errorModal.close());
+
+      // Don't auto-open for repeated errors
+      this.createTimer(() => {
+        if (!document.querySelector('.git-sync-error-modal')) {
+          errorModal.open();
+        }
+      }, 500);
+    }
+  }
 }
 // Enhanced Pending Changes Modal with Rich UX
 class EnhancedChangesModal extends Modal {
@@ -2344,23 +2607,151 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
   display(): void {
 	const { containerEl } = this;
 	containerEl.empty();
-	containerEl.createEl('h2', { text: 'Mobile Git Sync Settings' });
+	
+	const isBeginnerMode = this.plugin.settings.userMode === 'beginner';
+	
+	// Header with mode toggle
+	const header = containerEl.createDiv('settings-header');
+	header.createEl('h2', { text: 'Mobile Git Sync Settings' });
+	
+	// User mode toggle
+	const modeToggle = header.createDiv('mode-toggle');
+	modeToggle.createEl('span', { text: 'Interface: ', cls: 'mode-label' });
+	
+	const beginnerBtn = modeToggle.createEl('button', {
+	  text: '🌱 Beginner',
+	  cls: isBeginnerMode ? 'mode-btn active' : 'mode-btn'
+	});
+	const advancedBtn = modeToggle.createEl('button', {
+	  text: '⚡ Advanced', 
+	  cls: !isBeginnerMode ? 'mode-btn active' : 'mode-btn'
+	});
+	
+	beginnerBtn.onclick = () => this.switchMode('beginner');
+	advancedBtn.onclick = () => this.switchMode('advanced');
 
 	const s = this.plugin.settings;
 	
-	// Store references to elements that need updating
-	let configuredToggle: any;
-	let validationDisplay: HTMLElement;
+	if (isBeginnerMode) {
+	  this.displayBeginnerSettings(containerEl, s);
+	} else {
+	  this.displayAdvancedSettings(containerEl, s);
+	}
+  }
+  
+  private async switchMode(mode: 'beginner' | 'advanced'): Promise<void> {
+	this.plugin.settings.userMode = mode;
+	await this.plugin.saveSettings();
+	this.display(); // Refresh the display
 	
-	// Create validation status display
-	validationDisplay = containerEl.createEl('div', { cls: 'setting-validation-status' });
+	// Update commands to reflect new mode
+	// Note: This would ideally trigger a command re-registration, 
+	// but we'll handle it on next plugin load for simplicity
+	new Notice(`Switched to ${mode} mode. Restart Obsidian to see updated commands.`);
+  }
+  
+  private displayBeginnerSettings(containerEl: HTMLElement, s: any): void {
+	const helpText = containerEl.createDiv('beginner-help');
+	helpText.innerHTML = `
+	  <div class="settings-help-card">
+		<h3>🚀 Quick Setup</h3>
+		<p>Just fill in these 3 essential settings to get started:</p>
+	  </div>
+	`;
 	
-	// Function to update validation display and toggle state
+	// Essential settings only for beginners
+	const essentialSection = containerEl.createDiv('essential-settings');
+	
+	new Setting(essentialSection)
+	  .setName('📂 Notes Storage Location')
+	  .setDesc('Where your notes are stored on GitHub (e.g., https://github.com/username/my-notes)')
+	  .addText(text => text
+		.setPlaceholder('https://github.com/username/my-notes')
+		.setValue(s.repoUrl)
+		.onChange(async (value) => {
+		  s.repoUrl = value;
+		  await this.plugin.parseRepoUrl();
+		  await this.plugin.saveSettings();
+		}));
+
+	new Setting(essentialSection)
+	  .setName('🔑 GitHub Access Key')
+	  .setDesc('Your personal access token so we can sync your notes securely')
+	  .addText(text => {
+		text.setPlaceholder('Paste your GitHub token here')
+		  .setValue(s.githubToken ? '••••••••••••••••' : '')
+		  .onChange(async (value) => {
+			if (value && value !== '••••••••••••••••') {
+			  await this.plugin.setSecureToken(value);
+			  text.setValue('••••••••••••••••');
+			  new Notice('✅ Access key saved securely!');
+			}
+		  });
+		text.inputEl.type = 'password';
+		text.inputEl.autocomplete = 'off';
+		return text;
+	  });
+
+	// Auto-sync toggle (simplified)
+	new Setting(essentialSection)
+	  .setName('⚡ Automatic Sync')
+	  .setDesc('Keep your notes in sync automatically every 15 minutes')
+	  .addToggle(toggle => toggle
+		.setValue(s.autoSyncEnabled !== false)
+		.onChange(async (value) => {
+		  s.autoSyncEnabled = value;
+		  s.autoSyncInterval = value ? 15 : 0;
+		  await this.plugin.saveSettings();
+		  new Notice(value ? '✅ Auto-sync enabled!' : '⏸️ Auto-sync disabled');
+		}));
+
+	// Status and getting started
+	const statusSection = containerEl.createDiv('beginner-status');
+	const isConfigured = s.repoUrl && (s.githubToken || s.useSecureStorage);
+	
+	if (isConfigured) {
+	  statusSection.innerHTML = `
+		<div class="status-success">
+		  <h3>🎉 You're all set!</h3>
+		  <p>Your Mobile Git Sync is ready to use. Try the "🔄 Sync My Notes" command!</p>
+		</div>
+	  `;
+	} else {
+	  statusSection.innerHTML = `
+		<div class="status-incomplete">
+		  <h3>📋 Setup Progress</h3>
+		  <p>Fill in the settings above to start syncing your notes.</p>
+		</div>
+	  `;
+	}
+	
+	// Advanced settings link
+	const advancedLink = containerEl.createDiv('advanced-link');
+	advancedLink.innerHTML = `
+	  <details class="advanced-toggle">
+		<summary>⚙️ Advanced Options</summary>
+		<div class="advanced-preview">
+		  <p>Switch to Advanced mode for more control over:</p>
+		  <ul>
+			<li>Sync timing and frequency</li>
+			<li>File exclusion patterns</li>
+			<li>Conflict resolution strategies</li>
+			<li>Custom workspace versions</li>
+		  </ul>
+		</div>
+	  </details>
+	`;
+	
+	// Support section (simplified)
+	this.addSupportSection(containerEl);
+  }
+  
+  private displayAdvancedSettings(containerEl: HTMLElement, s: any): void {
+	// Validation display for advanced users
+	let validationDisplay = containerEl.createDiv('setting-validation-status');
+	
 	const updateValidation = async () => {
-	  // Use async validation to check secure tokens
 	  const validation = await this.plugin.validateSettingsAsync();
-	  
-	  // Clear and update validation display
 	  validationDisplay.empty();
 	  if (!validation.isValid) {
 		validationDisplay.createEl('h3', { text: 'Configuration Issues:', cls: 'setting-error-title' });
@@ -2370,27 +2761,19 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		});
 	  } else {
 		validationDisplay.createEl('div', { 
-		  text: '✅ All settings are valid - you can now enable sync!', 
+		  text: '✅ All settings are valid', 
 		  cls: 'setting-validation-success' 
 		});
 	  }
-	  
-	  // Update configured toggle state
-	  if (configuredToggle) {
-		configuredToggle.setDisabled(!validation.isValid);
-		if (!validation.isValid && s.isConfigured) {
-		  // Auto-disable if settings become invalid
-		  s.isConfigured = false;
-		  configuredToggle.setValue(false);
-		  this.plugin.saveSettings();
-		}
-	  }
 	};
 	
-	// Initial validation display
 	updateValidation();
 
-	new Setting(containerEl)
+	// Core Settings Group
+	const coreGroup = containerEl.createDiv('settings-group');
+	coreGroup.createEl('h3', { text: '🔧 Core Settings' });
+
+	new Setting(coreGroup)
 	  .setName('GitHub Repository URL')
 	  .setDesc('Format: https://github.com/owner/repo')
 	  .addText(text => text
@@ -2400,20 +2783,20 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		  s.repoUrl = value;
 		  await this.plugin.parseRepoUrl();
 		  await this.plugin.saveSettings();
-		  updateValidation(); // Update validation after change
+		  updateValidation();
 		}));
 
-	new Setting(containerEl)
+	new Setting(coreGroup)
 	  .setName('GitHub Token')
-	  .setDesc('A personal access token with repo access (stored securely)')
+	  .setDesc('Personal access token with repo access (stored securely)')
 	  .addText(text => {
 		text.setPlaceholder('ghp_...')
 		  .setValue(s.githubToken ? '••••••••••••••••' : '')
 		  .onChange(async (value) => {
 			if (value && value !== '••••••••••••••••') {
 			  await this.plugin.setSecureToken(value);
-			  text.setValue('••••••••••••••••'); // Mask the token immediately
-			  updateValidation(); // Update validation after change
+			  text.setValue('••••••••••••••••');
+			  updateValidation();
 			}
 		  });
 		text.inputEl.type = 'password';
@@ -2421,112 +2804,108 @@ class MobileGitSyncSettingTab extends PluginSettingTab {
 		return text;
 	  });
 
-	new Setting(containerEl)
+	new Setting(coreGroup)
 	  .setName('Branch')
-	  .setDesc('Branch to sync with')
+	  .setDesc('Git branch to sync with')
 	  .addText(text => text
 		.setPlaceholder('main')
 		.setValue(s.branch)
 		.onChange(async (value) => {
 		  s.branch = value;
 		  await this.plugin.saveSettings();
-		  updateValidation(); // Update validation after change
+		  updateValidation();
 		}));
 
-	new Setting(containerEl)
-	  .setName('Exclude Patterns')
-	  .setDesc('Glob patterns to exclude (comma separated)')
-	  .addText(text => text
-		.setPlaceholder('.git/**,node_modules/**')
-		.setValue(Array.isArray(s.excludePatterns) ? s.excludePatterns.join(',') : '')
-		.onChange(async (value) => {
-		  s.excludePatterns = value.split(',').map(str => str.trim()).filter(Boolean);
-		  await this.plugin.saveSettings();
-		  updateValidation(); // Update validation after change
-		}));
+	// Sync Behavior Group
+	const syncGroup = containerEl.createDiv('settings-group');
+	syncGroup.createEl('h3', { text: '🔄 Sync Behavior' });
 
-	new Setting(containerEl)
-	  .setName('Sync Folders')
-	  .setDesc('Only sync these folders (comma separated, blank for all)')
-	  .addText(text => text
-		.setPlaceholder('folder1,folder2')
-		.setValue(Array.isArray(s.syncFolders) ? s.syncFolders.join(',') : '')
-		.onChange(async (value) => {
-		  s.syncFolders = value.split(',').map(str => str.trim()).filter(Boolean);
-		  await this.plugin.saveSettings();
-		  updateValidation(); // Update validation after change
-		}));
-
-	new Setting(containerEl)
+	new Setting(syncGroup)
 	  .setName('Auto Sync Interval (minutes)')
-	  .setDesc('How often to auto-sync (in minutes)')
+	  .setDesc('Automatically sync every N minutes (0 to disable)')
 	  .addText(text => text
-		.setPlaceholder('5')
+		.setPlaceholder('15')
 		.setValue(String(s.autoSyncInterval))
 		.onChange(async (value) => {
-		  const num = parseInt(value);
-		  if (!isNaN(num) && num > 0) {
-			s.autoSyncInterval = num;
-			await this.plugin.saveSettings();
-			updateValidation(); // Update validation after change
-		  }
-		}));
-
-	new Setting(containerEl)
-	  .setName('Use GitHub API')
-	  .setDesc('Use GitHub API for sync (recommended)')
-	  .addToggle(toggle => toggle
-		.setValue(!!s.useGitHubAPI)
-		.onChange(async (value) => {
-		  s.useGitHubAPI = value;
+		  const interval = parseInt(value) || 0;
+		  s.autoSyncInterval = interval;
+		  s.autoSyncEnabled = interval > 0;
 		  await this.plugin.saveSettings();
-		  updateValidation(); // Update validation after change
+		  updateValidation();
 		}));
 
+	new Setting(syncGroup)
+	  .setName('Conflict Resolution Strategy')
+	  .setDesc('How to handle conflicts when same file is modified in multiple places')
+	  .addDropdown(drop => drop
+		.addOption('prompt', 'Ask me each time')
+		.addOption('latest', 'Use newest version')
+		.addOption('local', 'Keep my version')
+		.addOption('remote', 'Keep remote version')
+		.setValue(s.conflictStrategy as string)
+		.onChange(async (value) => {
+		  s.conflictStrategy = value as ConflictStrategy;
+		  await this.plugin.saveSettings();
+		  updateValidation();
+		}));
+
+	// File Management Group
+	const fileGroup = containerEl.createDiv('settings-group');
+	fileGroup.createEl('h3', { text: '📁 File Management' });
+
+	new Setting(fileGroup)
+	  .setName('Exclude Patterns')
+	  .setDesc('Files matching these patterns will not be synced (one per line)')
+	  .addTextArea(text => text
+		.setPlaceholder('.obsidian/workspace*\n*.tmp\n.trash/')
+		.setValue(s.excludePatterns.join('\n'))
+		.onChange(async (value) => {
+		  s.excludePatterns = value.split('\n').filter(p => p.trim());
+		  await this.plugin.saveSettings();
+		  updateValidation();
+		}));
+
+	new Setting(fileGroup)
+	  .setName('Sync Folders')
+	  .setDesc('Only sync these folders (leave empty to sync entire vault)')
+	  .addTextArea(text => text
+		.setPlaceholder('Daily Notes\nProjects\nTemplates')
+		.setValue(s.syncFolders.join('\n'))
+		.onChange(async (value) => {
+		  s.syncFolders = value.split('\n').filter(f => f.trim());
+		  await this.plugin.saveSettings();
+		  updateValidation();
+		}));
+
+	// Enable/Disable Toggle
 	new Setting(containerEl)
-	  .setName('Configured')
-	  .setDesc('Mark as configured (enable sync) - only enable after all settings are valid')
+	  .setName('Enable Sync')
+	  .setDesc('Master switch to enable/disable all sync functionality')
 	  .addToggle(toggle => {
-		configuredToggle = toggle; // Store reference for updating
-		return toggle
-		  .setValue(!!s.isConfigured)
+		const configuredToggle = toggle
+		  .setValue(s.isConfigured)
 		  .onChange(async (value) => {
-			// Use async validation to check secure tokens
-			const currentValidation = await this.plugin.validateSettingsAsync();
-			if (value && !currentValidation.isValid) {
-			  new Notice('Cannot enable sync: ' + currentValidation.errors.join(', '));
-			  toggle.setValue(false);
-			  return;
-			}
 			s.isConfigured = value;
 			await this.plugin.saveSettings();
 			if (value) {
 			  new Notice('Mobile Git Sync enabled!');
-			  // Update validation display after successful configuration
 			  updateValidation();
 			}
 		  });
+		  
+		// Initial validation check for toggle state
+		this.plugin.validateSettingsAsync().then(validation => {
+		  configuredToggle.setDisabled(!validation.isValid);
+		});
+		
+		return configuredToggle;
 	  });
-
-	// Add conflict resolution strategy setting
-	new Setting(containerEl)
-	  .setName('Conflict Resolution Strategy')
-	  .setDesc('Choose how to handle file conflicts: Prompt, Take Latest, Always Keep Local, or Always Keep Remote')
-	  .addDropdown(drop => drop
-		.addOption('prompt', 'Prompt')
-		.addOption('latest', 'Take Latest')
-		.addOption('local', 'Always Keep Local')
-		.addOption('remote', 'Always Keep Remote')
-		.setValue(this.plugin.settings.conflictStrategy as string)
-		.onChange(async (value) => {
-		  this.plugin.settings.conflictStrategy = value as ConflictStrategy;
-		  await this.plugin.saveSettings();
-		  updateValidation(); // Update validation after change
-		})
-	  );
-
-	// Add Buy Me a Coffee section at the bottom
-	const supportSection = containerEl.createEl('div', { cls: 'setting-support-section' });
+	  
+	this.addSupportSection(containerEl);
+  }
+  
+  private addSupportSection(containerEl: HTMLElement): void {
+	const supportSection = containerEl.createDiv('setting-support-section');
 	supportSection.createEl('h3', { text: '☕ Support Development' });
 	supportSection.createEl('p', { 
 	  text: 'If this plugin helps you stay productive, consider buying me a coffee!',

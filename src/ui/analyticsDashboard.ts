@@ -109,7 +109,7 @@ export interface ChartDataPoint {
 
 export class AnalyticsDashboard extends Modal {
   private data: AnalyticsData;
-  private refreshInterval: NodeJS.Timeout | null = null;
+  private refreshInterval: number | null = null;
   private charts = new Map<string, HTMLCanvasElement>();
 
   constructor(
@@ -727,7 +727,7 @@ export class AnalyticsDashboard extends Modal {
   private startAutoRefresh(): void {
     this.refreshInterval = setInterval(() => {
       this.refreshData();
-    }, 30000); // Refresh every 30 seconds
+    }, 30000) as unknown as number; // Refresh every 30 seconds
   }
 
   private stopAutoRefresh(): void {

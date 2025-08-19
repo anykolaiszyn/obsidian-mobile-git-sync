@@ -82,7 +82,7 @@ export class PerformanceMonitor extends DisposableService {
   private marks = new Map<string, PerformanceMark>();
   private activeOperations = new Map<string, number>();
   private alerts: PerformanceAlert[] = [];
-  private monitoringInterval: NodeJS.Timeout | null = null;
+  private monitoringInterval: number | null = null;
   private performanceObserver: PerformanceObserver | null = null;
 
   private readonly thresholds: PerformanceThresholds = {
@@ -458,7 +458,7 @@ export class PerformanceMonitor extends DisposableService {
     // Monitor resources periodically
     this.monitoringInterval = setInterval(() => {
       this.recordResourceUsage();
-    }, 30000); // Every 30 seconds
+    }, 30000) as unknown as number; // Every 30 seconds
   }
 
   private scheduleCleanup(): void {

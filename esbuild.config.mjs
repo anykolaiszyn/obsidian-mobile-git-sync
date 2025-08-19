@@ -37,7 +37,13 @@ const context = await esbuild.context({
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
+	minify: prod,
+	keepNames: false,
 	outfile: "main.js",
+	define: {
+		'process.env.NODE_ENV': prod ? '"production"' : '"development"'
+	},
+	drop: prod ? ['console', 'debugger'] : [],
 });
 
 if (prod) {
