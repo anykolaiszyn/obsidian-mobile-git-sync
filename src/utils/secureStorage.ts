@@ -5,7 +5,7 @@
  * Uses device-specific encryption keys and secure file storage
  */
 
-import { App, TFile, Notice } from 'obsidian';
+import { App, TFile, Notice, requestUrl } from 'obsidian';
 import { CryptoManager, EncryptedData } from './crypto';
 
 export interface TokenValidationResult {
@@ -123,7 +123,8 @@ export class SecureTokenManager {
       }
 
       // Make a lightweight API call to validate the token
-      const response = await fetch('https://api.github.com/user', {
+      const response = await requestUrl({
+        url: 'https://api.github.com/user',
         method: 'GET',
         headers: {
           'Authorization': `token ${tokenToValidate}`,
@@ -133,10 +134,10 @@ export class SecureTokenManager {
       });
 
       // Extract rate limit information
-      const rateLimitRemaining = parseInt(response.headers.get('X-RateLimit-Remaining') || '0');
-      const rateLimitReset = parseInt(response.headers.get('X-RateLimit-Reset') || '0');
+      const rateLimitRemaining = parseInt(response.headers['X-RateLimit-Remaining'] || '0');
+      const rateLimitReset = parseInt(response.headers['X-RateLimit-Reset'] || '0');
 
-      if (response.ok) {
+      if (response.status >= 200 && response.status < 300) {
         return {
           isValid: true,
           rateLimitRemaining,
@@ -150,7 +151,7 @@ export class SecureTokenManager {
           rateLimitReset
         };
       } else if (response.status === 403) {
-        const responseBody = await response.text();
+        const responseBody = response.text || '';
         if (responseBody.includes('rate limit')) {
           return {
             isValid: true, // Token is valid, just rate limited
@@ -169,7 +170,7 @@ export class SecureTokenManager {
       } else {
         return {
           isValid: false,
-          error: `API returned ${response.status}: ${response.statusText}`,
+          error: `API returned ${response.status}`,
           rateLimitRemaining,
           rateLimitReset
         };

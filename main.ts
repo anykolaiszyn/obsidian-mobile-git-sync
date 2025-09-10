@@ -1,4 +1,4 @@
-import { Plugin, Modal, App, TFile, Notice, requestUrl, Setting, PluginSettingTab, normalizePath, Menu, TFolder, moment } from 'obsidian';
+import { Plugin, Modal, App, TFile, Notice, requestUrl, Setting, PluginSettingTab, normalizePath, Menu, TFolder, moment, Platform } from 'obsidian';
 import { PluginSettings, FileChange, LogLevel, LogEntry, RetryConfig, GitHubApiResponse, GitHubFileInfo, ConflictStrategy, SyncPlan, SyncFile, VaultScanResult } from './src/types';
 import { ServiceContainer } from './src/core/container';
 import { SecureTokenManager } from './src/utils/secureStorage';
@@ -54,7 +54,7 @@ export default class MobileGitSyncPlugin extends Plugin {
   async onload() {
 	try {
 	  // Check if we're running on mobile
-	  const isMobile = (this.app as any).isMobile || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+	  const isMobile = Platform.isMobile;
 	  
 	  // Mobile-specific initialization with enhanced error handling
 	  if (isMobile) {
@@ -196,7 +196,7 @@ export default class MobileGitSyncPlugin extends Plugin {
 	  
 	  this.log('Plugin loaded with enhanced UX', 'info');
 	} catch (error) {
-	  const isMobile = (this.app as any).isMobile || /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+	  const isMobile = Platform.isMobile;
 	  const errorMessage = (error as Error).message;
 	  
 	  console.error('Mobile Git Sync Plugin failed to load:', error);
@@ -1947,12 +1947,11 @@ export default class MobileGitSyncPlugin extends Plugin {
 
   private async testConnectivity(): Promise<boolean> {
 	try {
-	  const response = await fetch('https://api.github.com', { 
-		method: 'HEAD',
-		mode: 'no-cors',
-		cache: 'no-cache'
+	  const response = await requestUrl({
+		url: 'https://api.github.com',
+		method: 'HEAD'
 	  });
-	  return true;
+	  return response.status >= 200 && response.status < 300;
 	} catch {
 	  return false;
 	}

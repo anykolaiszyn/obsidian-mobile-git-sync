@@ -124,8 +124,8 @@ export class CryptoManager {
       new Date().getTimezoneOffset(),
       // Add Obsidian-specific identifiers if available
       (window as any).app?.appId || 'obsidian',
-      // Platform identifier
-      process.platform || 'unknown'
+      // Platform identifier (mobile-compatible)
+      navigator.platform || 'unknown'
     ];
     
     // Create a hash of the components
